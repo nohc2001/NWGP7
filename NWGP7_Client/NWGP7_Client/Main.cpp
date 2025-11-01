@@ -12,8 +12,6 @@ LPCTSTR lpszClass = L"Window Class Name";
 LPCTSTR lpszWindowName = L"windows program";
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam);
-void HPBar(HDC hDC, int x, int y, int hp);
-void ClearCross(HDC hDC, int x, int y, int r);
 
 struct Stage {
 	int x = 0;
