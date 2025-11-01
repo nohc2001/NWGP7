@@ -49,8 +49,30 @@ struct Enermy {
 	int animTimer = 0;
 };
 
+struct Pos {
+	int x;
+	int y;
+};
+
+struct InputData {
+	bool WPress;
+	bool APress;
+	bool SPress;
+	bool DPress;
+	bool SpacePress;
+};
+InputData inputdata;
+
+char MapData[5][5] = {};
+constexpr float MapMoveMargin = 100;
+constexpr float MapCenterX = 225;
+constexpr float MapCenterY = 250;
+constexpr int PlayerW = 150;
+constexpr int PlayerH = 200;
+
 struct Player {
-	int x = 225, y = 250; // chaX, chaY
+	int x = 225;
+	int y = 250; // chaX, chaY
 	int animCount = 0;    // chaCount
 	int hp = 100;
 	int maxMana = 3;
@@ -58,6 +80,28 @@ struct Player {
 	int defence = 0;
 	int attack = 0;
 	Card hand[5];         // card[5]
+	Pos pos;
+
+	void Move(int dx, int dy) {
+		pos.x += dx;
+		pos.y += dy;
+		if (pos.x < -2) {
+			pos.x = -2;
+		}
+		else if (pos.x > 2) {
+			pos.x = 2;
+		}
+
+		if (pos.y < -2) {
+			pos.y = -2;
+		}
+		else if (pos.y > 2) {
+			pos.y = 2;
+		}
+
+		x = MapCenterX + pos.x * MapMoveMargin;
+		y = MapCenterY - pos.y * MapMoveMargin;
+	}
 
 	// 상태 플래그
 	bool playerdeath = false;
@@ -72,18 +116,19 @@ struct Player {
 	bool onepunching = false;
 
 	// 상태 타이머
-	int attackTime = 0;    
-	int powerUpTime = 0;   
-	int powerDownTime = 0; 
-	int defUpTime = 0;     
-	int defDownTime = 0;   
-	int manaUpTime = 0;    
-	int manaDownTime = 0;  
-	int healTime = 0;      
+	int attackTime = 0;
+	int powerUpTime = 0;
+	int powerDownTime = 0;
+	int defUpTime = 0;
+	int defDownTime = 0;
+	int manaUpTime = 0;
+	int manaDownTime = 0;
+	int healTime = 0;
 	int onepunchingcount = 0;
 	int onepunchingcounttime = 0;
 	int animTimer = 0;
 };
+
 
 class GameState {
 public:
@@ -614,7 +659,8 @@ public:
 	void OnMouseMove(int x, int y);
 	void OnLButtonDown(int x, int y);
 	void OnLButtonUp(int x, int y);
-
+	void OnKeyDown(WPARAM wParam);
+	void OnKeyUp(WPARAM wParam);
 private:
 	HWND m_hWnd;
 	AssetManager m_Assets;  // 자원 관리
@@ -694,13 +740,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		break;
 
 	case WM_KEYDOWN:
-		// g_Game.OnKeyDown(wParam);
+		g_Game.OnKeyDown(wParam);
 		break;
-
+	case WM_KEYUP:
+		g_Game.OnKeyUp(wParam);
+		break;
 	case WM_CHAR:
 		g_Game.OnChar(wParam);
 		break;
-
 	case WM_MOUSEMOVE:
 		g_Game.OnMouseMove(LOWORD(lParam), HIWORD(lParam));
 		break;
@@ -779,6 +826,49 @@ void Game::OnLButtonDown(int x, int y)
 void Game::OnLButtonUp(int x, int y)
 {
 	m_Logic.HandleLButtonUp(m_State, x, y);
+}
+
+void Game::OnKeyDown(WPARAM wParam)
+{
+	constexpr float MoveMargin = 60;
+	if (wParam == 'W' && inputdata.WPress == false) {
+		m_State.player.Move(0, 1);
+		inputdata.WPress = true;
+	}
+	else if (wParam == 'A' && inputdata.APress == false) {
+		m_State.player.Move(-1, 0);
+		inputdata.APress = true;
+	}
+	else if (wParam == 'S' && inputdata.SPress == false) {
+		m_State.player.Move(0, -1);
+		inputdata.SPress = true;
+	}
+	else if (wParam == 'D' && inputdata.DPress == false) {
+		m_State.player.Move(1, 0);
+		inputdata.DPress = true;
+	}
+	else if (wParam == VK_SPACE && inputdata.SpacePress == false) {
+		inputdata.SpacePress = true;
+	}
+}
+
+void Game::OnKeyUp(WPARAM wParam)
+{
+	if (wParam == 'W') {
+		inputdata.WPress = false;
+	}
+	else if (wParam == 'A') {
+		inputdata.APress = false;
+	}
+	else if (wParam == 'S') {
+		inputdata.SPress = false;
+	}
+	else if (wParam == 'D') {
+		inputdata.DPress = false;
+	}
+	else if (wParam == VK_SPACE) {
+		inputdata.SpacePress = false;
+	}
 }
 
 void GameLogic::Initialize(GameState& state)
@@ -2275,6 +2365,7 @@ void Renderer::DrawMapScreen(HDC hdc, HDC imgDC, const GameState& state, const A
 	Ellipse(hdc, state.mapPlayerX - 15, state.mapPlayerY - 15, state.mapPlayerX + 15, state.mapPlayerY + 15);
 }
 
+HPEN hRedPen = CreatePen(PS_SOLID, 3, RGB(255, 0, 0));
 void Renderer::DrawBattleScreen(HDC hdc, HDC imgDC, const GameState& state, const AssetManager& assets) {
 	HBITMAP hOldImg;
 
@@ -2303,6 +2394,17 @@ void Renderer::DrawBattleScreen(HDC hdc, HDC imgDC, const GameState& state, cons
 	TransparentBlt(hdc, 1050, 600, 70, 55, imgDC, 0, 0, assets.endbuttonWidth, assets.endbuttonHeight, RGB(255, 255, 255));
 
 	SelectObject(imgDC, hOldImg);
+
+	//Draw Map
+	SelectObject(hdc, hRedPen);
+	constexpr float rateW = 0.4f;
+	constexpr float rateH = 0.8f;
+	for (int i = -2; i < 3; ++i) {
+		MoveToEx(hdc, MapCenterX + MapMoveMargin * i + PlayerW * rateW, MapCenterX - 2 * MapMoveMargin + PlayerH * rateH, NULL);
+		LineTo(hdc, MapCenterX + MapMoveMargin * i + PlayerW * rateW, MapCenterX + 2 * MapMoveMargin + PlayerH * rateH);
+		MoveToEx(hdc, MapCenterX - 2 * MapMoveMargin + PlayerW * rateW, MapCenterX + MapMoveMargin * i + PlayerH * rateH, NULL);
+		LineTo(hdc, MapCenterX + 2 * MapMoveMargin + PlayerW * rateW, MapCenterX + MapMoveMargin * i + PlayerH * rateH);
+	}
 
 	DrawHand(hdc, imgDC, state, assets);
 	DrawCharacters(hdc, imgDC, state, assets);
@@ -2532,7 +2634,7 @@ void Renderer::DrawCharacters(HDC hdc, HDC imgDC, const GameState& state, const 
 	}
 	else {
 		hOldImg = (HBITMAP)SelectObject(imgDC, assets.Cha[state.player.animCount]);
-		TransparentBlt(hdc, state.player.x, state.player.y, 150, 200, imgDC, 0, 0, assets.chaWidth, assets.chaHeight, RGB(100, 100, 100));
+		TransparentBlt(hdc, state.player.x, state.player.y, PlayerW * 0.75f, PlayerH * 0.75f, imgDC, 0, 0, assets.chaWidth, assets.chaHeight, RGB(100, 100, 100));
 	}
 
 	// 적
@@ -2566,7 +2668,7 @@ void Renderer::DrawCharacters(HDC hdc, HDC imgDC, const GameState& state, const 
 			if (state.stage3mode) {
 				if (state.stage3attack) { // 공격 모션 
 					int frameIndex = state.enemy.animCount / 3; // 0,0,0, 1,1,1, 2,2,2
-					if (frameIndex > 2) frameIndex = 2; 
+					if (frameIndex > 2) frameIndex = 2;
 					SelectObject(imgDC, assets.Enermy9[frameIndex]);
 				}
 				else { // 땅 속
@@ -2670,13 +2772,12 @@ void Renderer::HPBar(HDC hDC, int x, int y, int hp) {
 }
 
 void Renderer::ClearCross(HDC hDC, int x, int y, int r) {
-	HPEN hPen, oldPen;
-	hPen = CreatePen(PS_SOLID, 3, RGB(255, 0, 0));
-	oldPen = (HPEN)SelectObject(hDC, hPen);
+	/*hPen = CreatePen(PS_SOLID, 3, RGB(255, 0, 0));
+	oldPen = (HPEN)*/SelectObject(hDC, hRedPen);
 	MoveToEx(hDC, x - r, y - r, NULL);
 	LineTo(hDC, x + r, y + r);
 	MoveToEx(hDC, x + r, y - r, NULL);
 	LineTo(hDC, x - r, y + r);
-	SelectObject(hDC, oldPen);
-	DeleteObject(hPen);
+	/*SelectObject(hDC, oldPen);
+	DeleteObject(hPen);*/
 }
