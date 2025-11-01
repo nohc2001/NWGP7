@@ -222,6 +222,17 @@ public:
 	int enermydeffdown = 0, killmana = 0, healmana = 0;
 	int startstarttime = 0, endendtime = 0, pdeathtime = 0;
 
+	// 격자 맵 데이터 및 보스 공격 표시
+	static const int GRID_SIZE = 5;       // 고정된 5x5 격자
+	int mapData[GRID_SIZE][GRID_SIZE] = { 0 };  // 0=빈칸, 1=이동가능, 2=보스공격
+	bool bossAttackActive = false;        // 공격 표시 중인지 여부
+	int bossAttackTimer = 0;              // 공격 타이머
+	int bossAttackDuration = 10;          // 공격 표시 유지 프레임 (1초 정도)
+	float BosswarningTimer = 0.0f;        // 공격 경고 타이머
+
+	int lastAttackx = 0;
+	int lastAttacky = 0;
+
 	// TCHAR 버퍼 (UI 텍스트)
 	TCHAR def[5], atk[5], Mana[10], nowstagestr[10], enerdef[4];
 	TCHAR dam[3], eheal[3], dedam[3], mheal[3], powup[3], powdown[3], defu[3], defd[3];
@@ -652,15 +663,20 @@ private:
 
 	void CheckWinLossConditions(GameState& state);
 
+	void AttackWarning(GameState& state, float deltaTime);
+	void AttackOnRandomGreed(GameState& state, int damage);
+	void MapStateRepare(GameState& state);
+
 	// if realtime
 	void UpdateBattle_RealTime(GameState& state, float deltaTime);
-	void ExecuteEnemyAI(GameState& state);
+	void ExecuteEnemyAI(GameState& state, float deltaTime);
 	void UpdateBuffsAndTimers(GameState& state, float deltaTime);
 
 	void StartBattle(GameState& state); // 맵에서 전투 시작
 	void PlayCard(GameState& state, int cardIndex, int playerindex = 0); // 카드 사용
 
-	void ApplyDamageToPlayer(GameState& state, int damage, int playerindex = 0);
+
+	void ApplyDamageToPlayer(GameState& state, int rx, int ry, int damage, int playerindex = 0);
 	void ApplyDefenseToEnemy(GameState& state, int defense);
 };
 
@@ -1177,17 +1193,67 @@ void GameLogic::CheckWinLossConditions(GameState& state)
 	}
 }
 
-void GameLogic::ExecuteEnemyAI(GameState& state)
+void GameLogic::AttackWarning(GameState& state, float deltaTime)
+{
+	state.BosswarningTimer += deltaTime;
+	if (state.BosswarningTimer >= 0.0f) {
+		for (int i = 0; i < GameState::GRID_SIZE; i++) {
+			for (int j = 0; j < GameState::GRID_SIZE; j++) {
+			state.mapData[i][j] = 3;
+		   }
+		}
+	}
+	if (state.BosswarningTimer < 5.0f && state.BosswarningTimer >= 3.0f) {
+		for (int i = 0; i < GameState::GRID_SIZE; i++) {
+			for (int j = 0; j < GameState::GRID_SIZE; j++) {
+				if (state.mapData[i][j] == 3) {
+					state.mapData[i][j] = 0; // 4 = 경고
+				}
+			}
+		}
+	}
+}
+
+void GameLogic::AttackOnRandomGreed(GameState& state, int damage)
+{
+	int rx = rand() % GameState::GRID_SIZE;
+	int ry = rand() % GameState::GRID_SIZE;
+
+
+	state.lastAttackx = rx;
+	state.lastAttacky = ry;
+
+	// 공격 지점 설정
+	state.mapData[ry][rx] = 2; //2 = 공격이라는 뜻
+	state.bossAttackTimer = 0;
+	
+	ApplyDamageToPlayer(state, rx, ry, damage, 0); // 데미지 15
+}
+
+void GameLogic::MapStateRepare(GameState& state)
+{
+	for (int i = 0; i < GameState::GRID_SIZE; i++) {
+		for (int j = 0; j < GameState::GRID_SIZE; j++) {
+			state.mapData[i][j] = 0;
+		}
+	}
+}
+
+void GameLogic::ExecuteEnemyAI(GameState& state, float deltaTime)
 {
 	// 스테이지 1 슬라임 패턴
 	if (state.boss.id == 0) { // 데미지 0~5
-		ApplyDamageToPlayer(state, rand() % 5);
+		//경고
+		AttackWarning(state, deltaTime);
+		AttackOnRandomGreed(state, 5);
+		MapStateRepare(state);
+		//복구
 	}
 	// 스테이지 2-1 기사 50% 공격 50% 방어
 	else if (state.boss.id == 1) { // 데미지 10 / 방어 10
 		state.patturn = rand() % 2;
 		if (state.patturn == 0) {
-			ApplyDamageToPlayer(state, 10);
+			AttackOnRandomGreed(state, 30);
 		}
 		else {
 			ApplyDefenseToEnemy(state, 10);
@@ -1201,13 +1267,13 @@ void GameLogic::ExecuteEnemyAI(GameState& state)
 			state.boss.healEnergy = 10;
 		}
 		else {
-			ApplyDamageToPlayer(state, 10);
+			AttackOnRandomGreed(state, 30);
 		}
 	}
 	// 스테이지 3-1 거북
 	else if (state.boss.id == 3) {
 		if (state.boss.bossmode2) { // 빨간 모드
-			ApplyDamageToPlayer(state, 60);
+			AttackOnRandomGreed(state, 30);
 		}
 		else { // 노멀 모드
 			state.boss.boss_statck++;
@@ -1219,7 +1285,7 @@ void GameLogic::ExecuteEnemyAI(GameState& state)
 	}
 	// 스테이지 3-2 개
 	else if (state.boss.id == 4) { // 데미지 20 / 방어 20
-		ApplyDamageToPlayer(state, 20);
+		AttackOnRandomGreed(state, 30);
 		ApplyDefenseToEnemy(state, 20);
 	}
 	// 스테이지 3-3 두더지
@@ -1229,7 +1295,7 @@ void GameLogic::ExecuteEnemyAI(GameState& state)
 			if (state.boss.boss_statck == 5) {
 				state.boss.boss_statck = 0;
 				state.boss.bossmode3 = true; // 공격 애니메이션
-				ApplyDamageToPlayer(state, 30);
+				AttackOnRandomGreed(state, 30);
 			}
 		}
 		else { // 지상
@@ -1238,13 +1304,13 @@ void GameLogic::ExecuteEnemyAI(GameState& state)
 				state.boss.bossmode2 = true;
 				state.dontattackcard = true; // 공격 카드 사용 금지
 			}
-			ApplyDamageToPlayer(state, 10);
+			AttackOnRandomGreed(state, 30);
 			ApplyDefenseToEnemy(state, 10);
 		}
 	}
 	// 스테이지 4-1 마트료시카
 	else if (state.boss.id == 6) { // 공격20 방어 20
-		ApplyDamageToPlayer(state, 20);
+		AttackOnRandomGreed(state, 30);
 		ApplyDefenseToEnemy(state, 20);
 	}
 	// 스테이지 4-2 관
@@ -1257,22 +1323,22 @@ void GameLogic::ExecuteEnemyAI(GameState& state)
 		else if (state.boss.boss_statck == 4) {
 			state.boss.boss_statck = 0;
 			state.boss.nodamageMode = false; // 무적 해제
-			ApplyDamageToPlayer(state, 30);
+			AttackOnRandomGreed(state, 30);
 			state.boss.bossmode3 = false;
 		}
 		else {
-			ApplyDamageToPlayer(state, 20);
+			AttackOnRandomGreed(state, 30);
 			ApplyDefenseToEnemy(state, 20);
 		}
 	}
 	// 보스 스테이지
-	else if (state.boss.id == 8) { // 노 각성 공 20 방 20 / 각성 공 30 방 30
+	if (state.boss.id == 8) { // 노 각성 공 20 방 20 / 각성 공 30 방 30
 		if (state.boss.bossAwakening) {
-			ApplyDamageToPlayer(state, 30);
+			AttackOnRandomGreed(state, 30);
 			ApplyDefenseToEnemy(state, 30);
 		}
 		else {
-			ApplyDamageToPlayer(state, 20);
+			AttackOnRandomGreed(state, 30);
 			ApplyDefenseToEnemy(state, 20);
 		}
 	}
@@ -1342,7 +1408,7 @@ void GameLogic::UpdateBattle_RealTime(GameState& state, float deltaTime)
 	if (state.boss.attackTime > bossAttackDelay && !state.boss.death) { // 턴 시작
 		state.boss.attackTime = 0;
 		state.droww = true; // 카드 드로우
-		ExecuteEnemyAI(state);
+		ExecuteEnemyAI(state, deltaTime);
 	}
 
 	//animation
@@ -1527,6 +1593,14 @@ void GameLogic::UpdateBuffsAndTimers(GameState& state, float deltaTime)
 		state.swordcount++;
 		if (state.swordcount >= 5) { state.sword = false; state.swordcount = 0; }
 	}
+	//if (state.boss.attackTime > 0 && state.boss.attackTime < 22) { // boss 공격 모션
+	//	if (state.boss.attackTime == 2) {
+	//		state.boss.x -= 100;
+	//	}
+	//	else if (state.boss.attackTime == 3) {
+	//		state.boss.x += 100;
+	//	}
+	//}
 	if (state.boss.attackTime > 0 && state.boss.attackTime < 22) { // boss 공격 모션
 		if (state.boss.attackTime == 2) {
 			state.boss.x -= 100;
@@ -1974,10 +2048,19 @@ void GameLogic::PlayCard(GameState& state, int i, int playerindex) {
 	state.enermytouch = false;
 }
 
-void GameLogic::ApplyDamageToPlayer(GameState& state, int damage, int playerindex) {
+void GameLogic::ApplyDamageToPlayer(GameState& state, int attackX, int attackY, int damage, int playerindex) {
 	Player& player = state.players[playerindex];
 	state.boss.attackTime = 1;
 	player.effect_anim_data.hurt = true;
+
+	int px = player.pos.x + 2;
+	int py = player.pos.y + 2;
+
+	if (px != attackX || py != attackY)
+	{
+		// 공격이 빗나감
+		return;
+	}
 
 	if (player.effect_anim_data.holiShild) {
 		damage = 0;
@@ -2143,16 +2226,71 @@ void Renderer::DrawPVEScreen(HDC hdc, HDC imgDC, const GameState& state, const A
 
 	SelectObject(imgDC, hOldImg);
 
-	//Draw Map
-	SelectObject(hdc, hRedPen);
+	HBRUSH hBlueBrush = CreateSolidBrush(RGB(0, 0, 255));
+	HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, hBlueBrush);
 	constexpr float rateW = 0.4f;
-	constexpr float rateH = 0.8f;
-	for (int i = -2; i < 3; ++i) {
-		MoveToEx(hdc, MapCenterX + MapMoveMargin * i + PlayerW * rateW, MapCenterX - 2 * MapMoveMargin + PlayerH * rateH, NULL);
-		LineTo(hdc, MapCenterX + MapMoveMargin * i + PlayerW * rateW, MapCenterX + 2 * MapMoveMargin + PlayerH * rateH);
-		MoveToEx(hdc, MapCenterX - 2 * MapMoveMargin + PlayerW * rateW, MapCenterX + MapMoveMargin * i + PlayerH * rateH, NULL);
-		LineTo(hdc, MapCenterX + 2 * MapMoveMargin + PlayerW * rateW, MapCenterX + MapMoveMargin * i + PlayerH * rateH);
+	constexpr float rateH = 0.4f;
+	float offsetX = PlayerW * rateW;
+	float offsetY = PlayerH * rateH;
+	// 데미지 영역 미리 알려주고
+	for (int y = 0; y < 5; ++y) {
+		for (int x = 0; x < 5; ++x) {
+			if (state.mapData[y][x] == 3) {
+				float left = MapCenterX + (x - (5.0f / 2.0f)) * MapMoveMargin + offsetX;
+				float top = MapCenterY + (y - (5.0f / 2.0f)) * MapMoveMargin + offsetY;
+				float right = left + MapMoveMargin;
+				float bottom = top + MapMoveMargin;
+				RECT cellRect;
+				SetRect(&cellRect, (int)left, (int)top, (int)right, (int)bottom);
+				FillRect(hdc, &cellRect, hBlueBrush);
+			}
+		}
 	}
+	SelectObject(hdc, hOldBrush);
+	DeleteObject(hBlueBrush);
+	// 5x5 맵
+	SelectObject(hdc, hRedPen);
+	for (int i = 0; i <= 5; ++i) {
+		float lineOffset = (i - (5.0f / 2.0f)) * MapMoveMargin;
+		MoveToEx(hdc, MapCenterX + lineOffset + offsetX, MapCenterY - (5.0f / 2.0f) * MapMoveMargin + offsetY, NULL);
+		LineTo(hdc, MapCenterX + lineOffset + offsetX, MapCenterY + (5.0f / 2.0f) * MapMoveMargin + offsetY);
+		MoveToEx(hdc, MapCenterX - (5.0f / 2.0f) * MapMoveMargin + offsetX, MapCenterY + lineOffset + offsetY, NULL);
+		LineTo(hdc, MapCenterX + (5.0f / 2.0f) * MapMoveMargin + offsetX, MapCenterY + lineOffset + offsetY);
+	}
+
+	//여기에 공격예고 추가
+	//if (state.boss.attackTime < 22)
+	//{
+	//	HBRUSH redBrush = CreateSolidBrush(RGB(0, 0, 255));
+	//	HBRUSH oldBrush = (HBRUSH)SelectObject(hdc, redBrush);
+	//	HPEN noPen = (HPEN)GetStockObject(NULL_PEN);
+	//	HPEN oldPen = (HPEN)SelectObject(hdc, noPen);
+
+	//	constexpr int tileSize = 70; // 칸 크기
+	//	constexpr float originOffsetX = MapCenterX - 2 * MapMoveMargin + PlayerW * rateW;
+	//	constexpr float originOffsetY = MapCenterX - 2 * MapMoveMargin + PlayerH * rateH;
+
+	//	for (int y = 0; y < GameState::GRID_SIZE; ++y)
+	//	{
+	//		for (int x = 0; x < GameState::GRID_SIZE; ++x)
+	//		{
+	//			if (state.mapData[y][x] == 2)
+	//			{
+	//				int drawX = originOffsetX + x * MapMoveMargin;
+	//				int drawY = originOffsetY + y * MapMoveMargin;
+
+	//				// 반투명 효과는 불가하므로, 그냥 사각형으로 경고 표시
+	//				TextOut(hdc, drawX, drawY, L"X", 1);
+	//				Rectangle(hdc, drawX - tileSize / 2, drawY - tileSize / 2,
+	//					drawX + tileSize / 2, drawY + tileSize / 2);
+	//			}
+	//		}
+	//	}
+
+	//	SelectObject(hdc, oldBrush);
+	//	SelectObject(hdc, oldPen);
+	//	DeleteObject(redBrush);
+	//}
 
 	DrawHand(hdc, imgDC, state, assets);
 	DrawCharacters(hdc, imgDC, state, assets);
@@ -2471,14 +2609,28 @@ void Renderer::DrawEffects(HDC hdc, HDC imgDC, const GameState& state, const Ass
 			TransparentBlt(hdc, p.x - 150, p.y - 100, 300, 300, imgDC, 0, 0, assets.tekaiWidth, assets.tekaiHeight, RGB(255, 255, 255));
 		}
 		// 피격 이펙트
-		if (p.effect_anim_data.hurt) {
+		/*if (p.effect_anim_data.hurt) {
 			hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBithurt[p.effect_anim_data.hurtcount]);
 			TransparentBlt(hdc, p.x - 150, p.y - 100, 300, 300, imgDC, 0, 0, assets.hurtWidth, assets.hurtHeight, RGB(255, 255, 255));
-		}
+		}*/
 		// 굳건한 태세 이펙트
 		if (p.effect_anim_data.holiShild) {
 			hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitholiShild[p.effect_anim_data.holiShildcount]);
 			TransparentBlt(hdc, p.x + 20, p.y - 50, 300, 300, imgDC, 0, 0, assets.holiShildWidth, assets.holiShildHeight, RGB(255, 255, 255));
+		}
+		if (p.effect_anim_data.hurt && state.lastAttackx >= 0 && state.lastAttacky >= 0)
+		{
+			constexpr float rateW = 0.4f;
+			constexpr float rateH = 0.8f;
+			constexpr float originOffsetX = MapCenterX - 2 * MapMoveMargin + PlayerW * rateW;
+			constexpr float originOffsetY = MapCenterX - 2 * MapMoveMargin + PlayerH * rateH;
+
+			int tileCenterX = originOffsetX + state.lastAttackx * MapMoveMargin;
+			int tileCenterY = originOffsetY + state.lastAttacky * MapMoveMargin;
+
+			// 피격 이펙트 (보스 공격 위치에 그리기)
+			hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBithurt[p.effect_anim_data.hurtcount]);
+			TransparentBlt(hdc, tileCenterX - 150, tileCenterY - 150, 300, 300, imgDC, 0, 0, assets.hurtWidth, assets.hurtHeight, RGB(255, 255, 255));
 		}
 	}
 
