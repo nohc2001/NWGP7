@@ -1394,21 +1394,23 @@ void GameLogic::UpdateBattle_RealTime(GameState& state, float deltaTime)
 	}
 
 	//boss update
-	if (state.boss.hp <= 0) {
-		state.boss.death = true;
-		state.StartScreen = true;
-	}
-	if (state.player->onepunching) {
-		state.player->onepunchingcount = 1;
-	}
-	if (!state.dehp) {
-		state.boss.attackTime += deltaTime;
-	}
-	constexpr float bossAttackDelay = 5;
-	if (state.boss.attackTime > bossAttackDelay && !state.boss.death) { // 턴 시작
-		state.boss.attackTime = 0;
-		state.droww = true; // 카드 드로우
-		ExecuteEnemyAI(state, deltaTime);
+	if (state.PvEMode) {
+		if (state.boss.hp <= 0) {
+			state.boss.death = true;
+			state.StartScreen = true;
+		}
+		if (state.player->onepunching) {
+			state.player->onepunchingcount = 1;
+		}
+		if (!state.dehp) {
+			state.boss.attackTime += deltaTime;
+		}
+		constexpr float bossAttackDelay = 5;
+		if (state.boss.attackTime > bossAttackDelay && !state.boss.death) { // 턴 시작
+			state.boss.attackTime = 0;
+			state.droww = true; // 카드 드로우
+			ExecuteEnemyAI(state, deltaTime);
+		}
 	}
 
 	//animation
@@ -2182,14 +2184,18 @@ void Renderer::DrawPvPScreen(HDC hdc, HDC imgDC, const GameState& state, const A
 	SelectObject(imgDC, hOldImg);
 
 	//Draw Map
-	SelectObject(hdc, hRedPen);
 	constexpr float rateW = 0.4f;
-	constexpr float rateH = 0.8f;
-	for (int i = -2; i < 3; ++i) {
-		MoveToEx(hdc, MapCenterX + MapMoveMargin * i + PlayerW * rateW, MapCenterX - 2 * MapMoveMargin + PlayerH * rateH, NULL);
-		LineTo(hdc, MapCenterX + MapMoveMargin * i + PlayerW * rateW, MapCenterX + 2 * MapMoveMargin + PlayerH * rateH);
-		MoveToEx(hdc, MapCenterX - 2 * MapMoveMargin + PlayerW * rateW, MapCenterX + MapMoveMargin * i + PlayerH * rateH, NULL);
-		LineTo(hdc, MapCenterX + 2 * MapMoveMargin + PlayerW * rateW, MapCenterX + MapMoveMargin * i + PlayerH * rateH);
+	constexpr float rateH = 0.4f;
+	float offsetX = PlayerW * rateW;
+	float offsetY = PlayerH * rateH;
+	// 5x5 맵
+	SelectObject(hdc, hRedPen);
+	for (int i = 0; i <= 5; ++i) {
+		float lineOffset = (i - (5.0f / 2.0f)) * MapMoveMargin;
+		MoveToEx(hdc, MapCenterX + lineOffset + offsetX, MapCenterY - (5.0f / 2.0f) * MapMoveMargin + offsetY, NULL);
+		LineTo(hdc, MapCenterX + lineOffset + offsetX, MapCenterY + (5.0f / 2.0f) * MapMoveMargin + offsetY);
+		MoveToEx(hdc, MapCenterX - (5.0f / 2.0f) * MapMoveMargin + offsetX, MapCenterY + lineOffset + offsetY, NULL);
+		LineTo(hdc, MapCenterX + (5.0f / 2.0f) * MapMoveMargin + offsetX, MapCenterY + lineOffset + offsetY);
 	}
 
 	DrawHand(hdc, imgDC, state, assets);
@@ -2226,6 +2232,7 @@ void Renderer::DrawPVEScreen(HDC hdc, HDC imgDC, const GameState& state, const A
 
 	SelectObject(imgDC, hOldImg);
 
+	// Map
 	HBRUSH hBlueBrush = CreateSolidBrush(RGB(0, 0, 255));
 	HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, hBlueBrush);
 	constexpr float rateW = 0.4f;
@@ -2257,40 +2264,6 @@ void Renderer::DrawPVEScreen(HDC hdc, HDC imgDC, const GameState& state, const A
 		MoveToEx(hdc, MapCenterX - (5.0f / 2.0f) * MapMoveMargin + offsetX, MapCenterY + lineOffset + offsetY, NULL);
 		LineTo(hdc, MapCenterX + (5.0f / 2.0f) * MapMoveMargin + offsetX, MapCenterY + lineOffset + offsetY);
 	}
-
-	//여기에 공격예고 추가
-	//if (state.boss.attackTime < 22)
-	//{
-	//	HBRUSH redBrush = CreateSolidBrush(RGB(0, 0, 255));
-	//	HBRUSH oldBrush = (HBRUSH)SelectObject(hdc, redBrush);
-	//	HPEN noPen = (HPEN)GetStockObject(NULL_PEN);
-	//	HPEN oldPen = (HPEN)SelectObject(hdc, noPen);
-
-	//	constexpr int tileSize = 70; // 칸 크기
-	//	constexpr float originOffsetX = MapCenterX - 2 * MapMoveMargin + PlayerW * rateW;
-	//	constexpr float originOffsetY = MapCenterX - 2 * MapMoveMargin + PlayerH * rateH;
-
-	//	for (int y = 0; y < GameState::GRID_SIZE; ++y)
-	//	{
-	//		for (int x = 0; x < GameState::GRID_SIZE; ++x)
-	//		{
-	//			if (state.mapData[y][x] == 2)
-	//			{
-	//				int drawX = originOffsetX + x * MapMoveMargin;
-	//				int drawY = originOffsetY + y * MapMoveMargin;
-
-	//				// 반투명 효과는 불가하므로, 그냥 사각형으로 경고 표시
-	//				TextOut(hdc, drawX, drawY, L"X", 1);
-	//				Rectangle(hdc, drawX - tileSize / 2, drawY - tileSize / 2,
-	//					drawX + tileSize / 2, drawY + tileSize / 2);
-	//			}
-	//		}
-	//	}
-
-	//	SelectObject(hdc, oldBrush);
-	//	SelectObject(hdc, oldPen);
-	//	DeleteObject(redBrush);
-	//}
 
 	DrawHand(hdc, imgDC, state, assets);
 	DrawCharacters(hdc, imgDC, state, assets);
@@ -2419,49 +2392,51 @@ void Renderer::DrawHUD(HDC hdc, const GameState& state) {
 		SelectObject(hdc, hOldFont);
 		DeleteObject(hFont);
 
-		if (!state.boss.death) {
-			HPBar(hdc, state.boss.x + 75, state.boss.y - 30, state.boss.hp);
+		if (state.PvEMode) {
+			if (!state.boss.death) {
+				HPBar(hdc, state.boss.x + 75, state.boss.y - 30, state.boss.hp);
 
-			hFont = CreateFont(40, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Arial");
-			hOldFont = (HFONT)SelectObject(hdc, hFont);
-			SetBkMode(hdc, TRANSPARENT);
-			SetTextColor(hdc, RGB(0, 33, 255));
-			wsprintf(tempBuffer, L"%d", state.boss.defence);
-			TextOut(hdc, state.boss.x + 75, state.boss.y - 95, tempBuffer, lstrlen(tempBuffer));
+				hFont = CreateFont(40, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Arial");
+				hOldFont = (HFONT)SelectObject(hdc, hFont);
+				SetBkMode(hdc, TRANSPARENT);
+				SetTextColor(hdc, RGB(0, 33, 255));
+				wsprintf(tempBuffer, L"%d", state.boss.defence);
+				TextOut(hdc, state.boss.x + 75, state.boss.y - 95, tempBuffer, lstrlen(tempBuffer));
 
-			if (state.boss.defUp) {
-				SetTextColor(hdc, RGB(150, 133, 133));
-				wsprintf(tempBuffer, L"+%d", state.enermydeff);
-				TextOut(hdc, state.boss.x + 115, state.boss.y - 102, tempBuffer, lstrlen(tempBuffer));
-			}
-			if (state.boss.defDown) {
-				SetTextColor(hdc, RGB(150, 133, 133));
-				wsprintf(tempBuffer, L"-%d", state.enermydeffdown);
-				TextOut(hdc, state.boss.x + 115, state.boss.y - 110, tempBuffer, lstrlen(tempBuffer));
-			}
-			// 적 HP 효과 (데미지/힐 텍스트)
-			if (state.dehp) {
-				SetTextColor(hdc, RGB(200, 33, 33));
-				wsprintf(tempBuffer, L"-%d", state.damage);
-				TextOut(hdc, state.boss.x + 115, state.boss.y - 100, tempBuffer, lstrlen(tempBuffer));
-			}
-			if (state.boss.heal) {
-				SetTextColor(hdc, RGB(33, 200, 33));
-				wsprintf(tempBuffer, L"+%d", state.boss.healEnergy);
-				TextOut(hdc, state.boss.x + 115, state.boss.y - 100, tempBuffer, lstrlen(tempBuffer));
-			}
-			SelectObject(hdc, hOldFont);
-			DeleteObject(hFont);
+				if (state.boss.defUp) {
+					SetTextColor(hdc, RGB(150, 133, 133));
+					wsprintf(tempBuffer, L"+%d", state.enermydeff);
+					TextOut(hdc, state.boss.x + 115, state.boss.y - 102, tempBuffer, lstrlen(tempBuffer));
+				}
+				if (state.boss.defDown) {
+					SetTextColor(hdc, RGB(150, 133, 133));
+					wsprintf(tempBuffer, L"-%d", state.enermydeffdown);
+					TextOut(hdc, state.boss.x + 115, state.boss.y - 110, tempBuffer, lstrlen(tempBuffer));
+				}
+				// 적 HP 효과 (데미지/힐 텍스트)
+				if (state.dehp) {
+					SetTextColor(hdc, RGB(200, 33, 33));
+					wsprintf(tempBuffer, L"-%d", state.damage);
+					TextOut(hdc, state.boss.x + 115, state.boss.y - 100, tempBuffer, lstrlen(tempBuffer));
+				}
+				if (state.boss.heal) {
+					SetTextColor(hdc, RGB(33, 200, 33));
+					wsprintf(tempBuffer, L"+%d", state.boss.healEnergy);
+					TextOut(hdc, state.boss.x + 115, state.boss.y - 100, tempBuffer, lstrlen(tempBuffer));
+				}
+				SelectObject(hdc, hOldFont);
+				DeleteObject(hFont);
 
-			if (state.enermytouch) {
-				hPen = CreatePen(PS_SOLID, 3, RGB(255, 0, 0));
-				oldPen = (HPEN)SelectObject(hdc, hPen);
-				HBRUSH myBrush = (HBRUSH)GetStockObject(NULL_BRUSH);
-				HBRUSH oldBrush = (HBRUSH)SelectObject(hdc, myBrush);
-				Rectangle(hdc, state.boss.x - 70, state.boss.y - 60, state.boss.x + 70, state.boss.y + 60);
-				SelectObject(hdc, oldBrush);
-				SelectObject(hdc, oldPen);
-				DeleteObject(hPen);
+				if (state.enermytouch) {
+					hPen = CreatePen(PS_SOLID, 3, RGB(255, 0, 0));
+					oldPen = (HPEN)SelectObject(hdc, hPen);
+					HBRUSH myBrush = (HBRUSH)GetStockObject(NULL_BRUSH);
+					HBRUSH oldBrush = (HBRUSH)SelectObject(hdc, myBrush);
+					Rectangle(hdc, state.boss.x - 70, state.boss.y - 60, state.boss.x + 70, state.boss.y + 60);
+					SelectObject(hdc, oldBrush);
+					SelectObject(hdc, oldPen);
+					DeleteObject(hPen);
+				}
 			}
 		}
 	}
