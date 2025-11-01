@@ -1,0 +1,37 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\dong0\\Desktop\\\uB124\uD2B8\uC6CC\uD06C\uD504\uB85C\uADF8\uB798\uBC0D\\NWGP7\\NWGP7_Server\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{5DA2D275-9B4E-4A1A-A46F-818556C925C8}|NWGP7_Server.vcxproj|C:\\Users\\dong0\\Desktop\\\uB124\uD2B8\uC6CC\uD06C\uD504\uB85C\uADF8\uB798\uBC0D\\NWGP7\\NWGP7_Server\\Main.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{5DA2D275-9B4E-4A1A-A46F-818556C925C8}|NWGP7_Server.vcxproj|solutionrelative:Main.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "Main.cpp",
+              "DocumentMoniker": "C:\\Users\\dong0\\Desktop\\\uB124\uD2B8\uC6CC\uD06C\uD504\uB85C\uADF8\uB798\uBC0D\\NWGP7\\NWGP7_Server\\Main.cpp",
+              "RelativeDocumentMoniker": "Main.cpp",
+              "ToolTip": "C:\\Users\\dong0\\Desktop\\\uB124\uD2B8\uC6CC\uD06C\uD504\uB85C\uADF8\uB798\uBC0D\\NWGP7\\NWGP7_Server\\Main.cpp",
+              "RelativeToolTip": "Main.cpp",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
+              "WhenOpened": "2025-11-01T10:24:26.408Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
