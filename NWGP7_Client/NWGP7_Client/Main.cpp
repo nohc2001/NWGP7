@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <iostream>
 #define _CRT_SECURE_NO_WARNINGS
@@ -61,13 +60,20 @@ struct Card {
 	bool on = false;
 };
 
-struct Enermy {
+struct Boss {
 	int x = 0;
 	int y = 0;
 	int defence = 0;
 	int stage = 0;
 	int hp = 100;
 	bool death = false;
+
+	bool bossAwakening = false;
+	int id = 0; // 보스 종류
+	bool bossmode2 = false;
+	bool bossmode3 = false;
+	int boss_statck = 0;
+	bool nodamageMode = false; // 보스 무적 모드
 
 	int animCount = 0; 
 	float attackTime = 0; 
@@ -185,18 +191,6 @@ public:
 	bool endon = false; // 턴 종료 버튼 활성화
 	bool start = false; // 시작 버튼 활성화
 	bool GameClear = false;
-	int bossid;
-
-	// 스테이지별 플래그
-	bool boss = false, bossPhase2 = false;
-	int bossId = 0; // 보스 종류
-	int boss_6_statck = 0;
-	bool nodamage = false; // 보스 무적 패턴
-
-	bool stage3mode = false, stage3attack = false;
-	bool stage4attack = false;
-	bool bossstage = false, bosspowerup = false;
-	int stack333 = 0, stack44 = 0;
 
 	// 전투 상태
 	static constexpr int playerCount = 3;
@@ -204,7 +198,7 @@ public:
 	static constexpr int clientindex = 0;
 	Player* player = &player[clientindex]; // client's player
 
-	Enermy enemy; // enermyy
+	Boss boss; // enermyy
 	bool isPlayerTurn = true; // turn
 	int patturn = 0;
 
@@ -251,10 +245,10 @@ public:
 	BitmapArray<8> hBitBoom;
 	BitmapArray<5> hBitSniper, hBitOne, hBitsword, hBittekai, hBitholiShild;
 	BitmapArray<3> hBithurt;
-	BitmapArray<3> Enermy1, Enermy2, Enermy3, Enermy4, Enermy5, Enermy6;
-	BitmapArray<5> Enermy7;
-	BitmapArray<3> Enermy8, Enermy9, Enermy10, Enermy11, Enermy12, Enermy13, Enermy14, Enermy15;
-	BitmapArray<6> Enermy16, Enermy17;
+	BitmapArray<3> Boss1, Boss2, Boss3, Boss4, Boss5, Boss6;
+	BitmapArray<5> Boss7;
+	BitmapArray<3> Boss8, Boss9, Boss10, Boss11, Boss12, Boss13, Boss14, Boss15;
+	BitmapArray<6> Boss16, Boss17;
 
 	HBITMAP hBit;
 
@@ -331,9 +325,9 @@ public:
 		Icon[5] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP20)); // 2-1 아이콘
 		Icon[6] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP21)); // 2-2 아이콘
 		Icon[7] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP22)); // 1-1 아이콘
-		Enermy1[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP25)); // 슬라임
-		Enermy1[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP26)); // 슬라임2
-		Enermy1[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP27)); // 슬라임3
+		Boss1[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP25)); // 슬라임
+		Boss1[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP26)); // 슬라임2
+		Boss1[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP27)); // 슬라임3
 		hBitShild = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP28)); // 쉴드 아이콘
 		playbutton = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP29)); // 플레이 아이콘
 		hBitstop[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP30)); // 일시정지 아이콘
@@ -353,62 +347,62 @@ public:
 		hBitBoom[6] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP54)); // 폭발7
 		hBitBoom[7] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP55)); // 폭발8
 		hBitplayerdeath = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP56)); // player 죽는 모습
-		Enermy2[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP57)); // 기사
-		Enermy2[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP58)); // 기사2
-		Enermy2[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP59)); // 기사3
-		Enermy3[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP60)); // 주술사
-		Enermy3[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP61)); // 주술사2
-		Enermy3[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP62)); // 주술사3
-		Enermy4[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP66)); // 거북 
-		Enermy4[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP67)); // 거북 2
-		Enermy4[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP68)); // 거북 3
-		Enermy5[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP63)); // 거북 괴물모드
-		Enermy5[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP64)); // 거북 괴물모드2
-		Enermy5[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP65)); // 거북 괴물모드3
-		Enermy6[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP69)); // 개1
-		Enermy6[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP70)); // 개2
-		Enermy6[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP71)); // 개3
-		Enermy7[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP72)); // 두더지1
-		Enermy7[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP73)); // 두더지2
-		Enermy7[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP74)); // 두더지3
-		Enermy7[3] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP75)); // 두더지4
-		Enermy7[4] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP76)); // 두더지5
-		Enermy8[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP77)); // 두더지 땅속 1
-		Enermy8[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP78)); // 두더지 땅속 2
-		Enermy8[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP79)); // 두더지 땅속 3
-		Enermy9[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP80)); // 두더지 공격 1
-		Enermy9[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP81)); // 두더지 공격 2
-		Enermy9[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP82)); // 두더지 공격 3
-		Enermy10[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP83)); // 마트료시카 1-1
-		Enermy10[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP84)); // 마트료시카 1-2
-		Enermy10[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP85)); // 마트료시카 1-3
-		Enermy11[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP86)); // 마트료시카 2-1
-		Enermy11[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP87)); // 마트료시카 2-2
-		Enermy11[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP88)); // 마트료시카 2-3
-		Enermy12[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP89)); // 마트료시카 3-1
-		Enermy12[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP90)); // 마트료시카 3-2
-		Enermy12[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP91)); // 마트료시카 3-3
-		Enermy13[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP92)); // 마트료시카 4-1
-		Enermy13[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP93)); // 마트료시카 4-2
-		Enermy13[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP94)); // 마트료시카 4-3
-		Enermy14[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP95)); // 관 1
-		Enermy14[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP96)); // 관 2
-		Enermy14[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP97)); // 관 3
-		Enermy15[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP98)); // 관 공격
-		Enermy15[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP99)); // 관 공격
-		Enermy15[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP100)); // 관 공격
-		Enermy16[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP101)); // boss 1-1
-		Enermy16[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP102)); // boss 1-2
-		Enermy16[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP103)); // boss 1-3
-		Enermy16[3] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP104)); // boss 1-4
-		Enermy16[4] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP105)); // boss 1-5
-		Enermy16[5] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP106)); // boss 1-6
-		Enermy17[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP107)); // boss 2-1
-		Enermy17[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP108)); // boss 2-2
-		Enermy17[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP109)); // boss 2-3
-		Enermy17[3] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP110)); // boss 2-4
-		Enermy17[4] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP111)); // boss 2-5
-		Enermy17[5] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP112)); // boss 2-6
+		Boss2[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP57)); // 기사
+		Boss2[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP58)); // 기사2
+		Boss2[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP59)); // 기사3
+		Boss3[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP60)); // 주술사
+		Boss3[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP61)); // 주술사2
+		Boss3[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP62)); // 주술사3
+		Boss4[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP66)); // 거북 
+		Boss4[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP67)); // 거북 2
+		Boss4[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP68)); // 거북 3
+		Boss5[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP63)); // 거북 괴물모드
+		Boss5[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP64)); // 거북 괴물모드2
+		Boss5[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP65)); // 거북 괴물모드3
+		Boss6[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP69)); // 개1
+		Boss6[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP70)); // 개2
+		Boss6[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP71)); // 개3
+		Boss7[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP72)); // 두더지1
+		Boss7[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP73)); // 두더지2
+		Boss7[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP74)); // 두더지3
+		Boss7[3] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP75)); // 두더지4
+		Boss7[4] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP76)); // 두더지5
+		Boss8[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP77)); // 두더지 땅속 1
+		Boss8[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP78)); // 두더지 땅속 2
+		Boss8[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP79)); // 두더지 땅속 3
+		Boss9[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP80)); // 두더지 공격 1
+		Boss9[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP81)); // 두더지 공격 2
+		Boss9[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP82)); // 두더지 공격 3
+		Boss10[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP83)); // 마트료시카 1-1
+		Boss10[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP84)); // 마트료시카 1-2
+		Boss10[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP85)); // 마트료시카 1-3
+		Boss11[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP86)); // 마트료시카 2-1
+		Boss11[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP87)); // 마트료시카 2-2
+		Boss11[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP88)); // 마트료시카 2-3
+		Boss12[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP89)); // 마트료시카 3-1
+		Boss12[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP90)); // 마트료시카 3-2
+		Boss12[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP91)); // 마트료시카 3-3
+		Boss13[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP92)); // 마트료시카 4-1
+		Boss13[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP93)); // 마트료시카 4-2
+		Boss13[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP94)); // 마트료시카 4-3
+		Boss14[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP95)); // 관 1
+		Boss14[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP96)); // 관 2
+		Boss14[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP97)); // 관 3
+		Boss15[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP98)); // 관 공격
+		Boss15[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP99)); // 관 공격
+		Boss15[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP100)); // 관 공격
+		Boss16[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP101)); // boss 1-1
+		Boss16[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP102)); // boss 1-2
+		Boss16[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP103)); // boss 1-3
+		Boss16[3] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP104)); // boss 1-4
+		Boss16[4] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP105)); // boss 1-5
+		Boss16[5] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP106)); // boss 1-6
+		Boss17[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP107)); // boss 2-1
+		Boss17[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP108)); // boss 2-2
+		Boss17[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP109)); // boss 2-3
+		Boss17[3] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP110)); // boss 2-4
+		Boss17[4] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP111)); // boss 2-5
+		Boss17[5] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP112)); // boss 2-6
 		hBitSniper[0] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP113)); // 정조준1
 		hBitSniper[1] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP114)); // 정조준2
 		hBitSniper[2] = LoadBitmap(hInst, MAKEINTRESOURCE(IDB_BITMAP115)); // 정조준3
@@ -498,43 +492,43 @@ public:
 		stage1iconWidth = bmp.bmWidth;
 		stage1iconHeight = bmp.bmHeight;
 		// 1-1 슬라임
-		GetObject(Enermy1[0], sizeof(BITMAP), &bmp);
+		GetObject(Boss1[0], sizeof(BITMAP), &bmp);
 		enermy1Width = bmp.bmWidth;
 		enermy1Height = bmp.bmHeight;
 		// 2-1 기사
-		GetObject(Enermy2[0], sizeof(BITMAP), &bmp);
+		GetObject(Boss2[0], sizeof(BITMAP), &bmp);
 		enermy2Width = bmp.bmWidth;
 		enermy2Height = bmp.bmHeight;
 		// 2-2 주술사
-		GetObject(Enermy3[0], sizeof(BITMAP), &bmp);
+		GetObject(Boss3[0], sizeof(BITMAP), &bmp);
 		enermy3Width = bmp.bmWidth;
 		enermy3Height = bmp.bmHeight;
 		// 3-1 거북이
-		GetObject(Enermy5[0], sizeof(BITMAP), &bmp);
+		GetObject(Boss5[0], sizeof(BITMAP), &bmp);
 		enermy4Width = bmp.bmWidth;
 		enermy4Height = bmp.bmHeight;
 		// 3-2 개
-		GetObject(Enermy6[0], sizeof(BITMAP), &bmp);
+		GetObject(Boss6[0], sizeof(BITMAP), &bmp);
 		enermy5Width = bmp.bmWidth;
 		enermy5Height = bmp.bmHeight;
 		// 3-3 두더지
-		GetObject(Enermy7[0], sizeof(BITMAP), &bmp);
+		GetObject(Boss7[0], sizeof(BITMAP), &bmp);
 		enermy6Width = bmp.bmWidth;
 		enermy6Height = bmp.bmHeight;
 		// 4-1 마트료시카
-		GetObject(Enermy10[0], sizeof(BITMAP), &bmp);
+		GetObject(Boss10[0], sizeof(BITMAP), &bmp);
 		enermy7Width = bmp.bmWidth;
 		enermy7Height = bmp.bmHeight;
 		// 4-2 관
-		GetObject(Enermy14[0], sizeof(BITMAP), &bmp);
+		GetObject(Boss14[0], sizeof(BITMAP), &bmp);
 		enermy8Width = bmp.bmWidth;
 		enermy8Height = bmp.bmHeight;
 		// boss 1
-		GetObject(Enermy16[0], sizeof(BITMAP), &bmp);
+		GetObject(Boss16[0], sizeof(BITMAP), &bmp);
 		enermy9Width = bmp.bmWidth;
 		enermy9Height = bmp.bmHeight;
 		// boss 2
-		GetObject(Enermy17[0], sizeof(BITMAP), &bmp);
+		GetObject(Boss17[0], sizeof(BITMAP), &bmp);
 		enermy10Width = bmp.bmWidth;
 		enermy10Height = bmp.bmHeight;
 		// 쉴드 아이콘
@@ -607,7 +601,7 @@ public:
 		for (int i = 0; i < 15; ++i) DeleteObject(CARD[i]);
 		DeleteObject(bossicon);
 		for (int i = 0; i < 8; ++i) DeleteObject(Icon[i]);
-		for (int i = 0; i < 3; ++i) DeleteObject(Enermy1[i]);
+		for (int i = 0; i < 3; ++i) DeleteObject(Boss1[i]);
 		DeleteObject(hBitShild);
 		DeleteObject(playbutton);
 		for (int i = 0; i < 2; ++i) DeleteObject(hBitstop[i]);
@@ -616,22 +610,22 @@ public:
 		for (int i = 0; i < 2; ++i) DeleteObject(endbutton[i]);
 		for (int i = 0; i < 8; ++i) DeleteObject(hBitBoom[i]);
 		DeleteObject(hBitplayerdeath);
-		for (int i = 0; i < 3; ++i) DeleteObject(Enermy2[i]);
-		for (int i = 0; i < 3; ++i) DeleteObject(Enermy3[i]);
-		for (int i = 0; i < 3; ++i) DeleteObject(Enermy4[i]);
-		for (int i = 0; i < 3; ++i) DeleteObject(Enermy5[i]);
-		for (int i = 0; i < 3; ++i) DeleteObject(Enermy6[i]);
-		for (int i = 0; i < 5; ++i) DeleteObject(Enermy7[i]);
-		for (int i = 0; i < 3; ++i) DeleteObject(Enermy8[i]);
-		for (int i = 0; i < 3; ++i) DeleteObject(Enermy9[i]);
-		for (int i = 0; i < 3; ++i) DeleteObject(Enermy10[i]);
-		for (int i = 0; i < 3; ++i) DeleteObject(Enermy11[i]);
-		for (int i = 0; i < 3; ++i) DeleteObject(Enermy12[i]);
-		for (int i = 0; i < 3; ++i) DeleteObject(Enermy13[i]);
-		for (int i = 0; i < 3; ++i) DeleteObject(Enermy14[i]);
-		for (int i = 0; i < 3; ++i) DeleteObject(Enermy15[i]);
-		for (int i = 0; i < 6; ++i) DeleteObject(Enermy16[i]);
-		for (int i = 0; i < 6; ++i) DeleteObject(Enermy17[i]);
+		for (int i = 0; i < 3; ++i) DeleteObject(Boss2[i]);
+		for (int i = 0; i < 3; ++i) DeleteObject(Boss3[i]);
+		for (int i = 0; i < 3; ++i) DeleteObject(Boss4[i]);
+		for (int i = 0; i < 3; ++i) DeleteObject(Boss5[i]);
+		for (int i = 0; i < 3; ++i) DeleteObject(Boss6[i]);
+		for (int i = 0; i < 5; ++i) DeleteObject(Boss7[i]);
+		for (int i = 0; i < 3; ++i) DeleteObject(Boss8[i]);
+		for (int i = 0; i < 3; ++i) DeleteObject(Boss9[i]);
+		for (int i = 0; i < 3; ++i) DeleteObject(Boss10[i]);
+		for (int i = 0; i < 3; ++i) DeleteObject(Boss11[i]);
+		for (int i = 0; i < 3; ++i) DeleteObject(Boss12[i]);
+		for (int i = 0; i < 3; ++i) DeleteObject(Boss13[i]);
+		for (int i = 0; i < 3; ++i) DeleteObject(Boss14[i]);
+		for (int i = 0; i < 3; ++i) DeleteObject(Boss15[i]);
+		for (int i = 0; i < 6; ++i) DeleteObject(Boss16[i]);
+		for (int i = 0; i < 6; ++i) DeleteObject(Boss17[i]);
 		for (int i = 0; i < 5; ++i) DeleteObject(hBitSniper[i]);
 		for (int i = 0; i < 5; ++i) DeleteObject(hBitOne[i]);
 		for (int i = 0; i < 5; ++i) DeleteObject(hBitsword[i]);
@@ -978,11 +972,11 @@ void GameLogic::Update(GameState& state)
 	else {
 		if (state.PvEMode) {
 			float deltaTime = 0.017f;
-			UpdatePvE(state, deltaTime); // 전투
+			UpdatePvE(state, deltaTime); // 레이드
 		}
 		else {
 			float deltaTime = 0.017f;
-			UpdatePvP(state, deltaTime); // 맵 이동
+			UpdatePvP(state, deltaTime); // pvp
 		}
 	}
 }
@@ -1166,18 +1160,15 @@ void GameLogic::UpdatePvP(GameState& state, float deltaTime)
 
 void GameLogic::CheckWinLossConditions(GameState& state)
 {
-	if (state.enemy.hp <= 0 && !state.boss) {
-		state.boomswitch = true;
-	}
-	if (state.boss && state.enemy.hp <= 0) { // boss 스테이지
-		if (state.bossPhase2) {
+	if (state.boss.hp <= 0) { // boss 
+		if (state.boss.bossAwakening) {
 			state.boomswitch = true;
 		}
 		else {
-			state.enemy.heal = true;
-			state.enemy.healEnergy = 100;
-			state.bossPhase2 = true;
-			state.enemy.defence = 20;
+			state.boss.heal = true;
+			state.boss.healEnergy = 100;
+			state.boss.bossAwakening = true;
+			state.boss.defence = 20;
 		}
 	}
 	if (state.player->hp <= 0) {
@@ -1189,11 +1180,11 @@ void GameLogic::CheckWinLossConditions(GameState& state)
 void GameLogic::ExecuteEnemyAI(GameState& state)
 {
 	// 스테이지 1 슬라임 패턴
-	if (state.bossId == 0) { // 데미지 0~5
+	if (state.boss.id == 0) { // 데미지 0~5
 		ApplyDamageToPlayer(state, rand() % 5);
 	}
 	// 스테이지 2-1 기사 50% 공격 50% 방어
-	else if (state.bossId == 1) { // 데미지 10 / 방어 10
+	else if (state.boss.id == 1) { // 데미지 10 / 방어 10
 		state.patturn = rand() % 2;
 		if (state.patturn == 0) {
 			ApplyDamageToPlayer(state, 10);
@@ -1203,48 +1194,48 @@ void GameLogic::ExecuteEnemyAI(GameState& state)
 		}
 	}
 	// 스테이지 2-2 주술사 50% 공격 50% 자힐
-	else if (state.bossId == 2) { // 데미지 10 / 힐 10
+	else if (state.boss.id == 2) { // 데미지 10 / 힐 10
 		state.patturn = rand() % 2;
 		if (state.patturn == 0) {
-			state.enemy.heal = true;
-			state.enemy.healEnergy = 10;
+			state.boss.heal = true;
+			state.boss.healEnergy = 10;
 		}
 		else {
 			ApplyDamageToPlayer(state, 10);
 		}
 	}
 	// 스테이지 3-1 거북
-	else if (state.bossId == 3) {
-		if (state.stage3mode) { // 빨간 모드
+	else if (state.boss.id == 3) {
+		if (state.boss.bossmode2) { // 빨간 모드
 			ApplyDamageToPlayer(state, 60);
 		}
 		else { // 노멀 모드
-			state.stack333++;
-			if (state.stack333 == 5) {
-				state.stage3mode = true;
+			state.boss.boss_statck++;
+			if (state.boss.boss_statck == 5) {
+				state.boss.bossmode2 = true;
 			}
 			ApplyDefenseToEnemy(state, 20);
 		}
 	}
 	// 스테이지 3-2 개
-	else if (state.bossId == 4) { // 데미지 20 / 방어 20
+	else if (state.boss.id == 4) { // 데미지 20 / 방어 20
 		ApplyDamageToPlayer(state, 20);
 		ApplyDefenseToEnemy(state, 20);
 	}
 	// 스테이지 3-3 두더지
-	else if (state.bossId == 5) {
-		if (state.stage3mode) { // 땅 팜
-			state.stack333++;
-			if (state.stack333 == 5) {
-				state.stack333 = 0;
-				state.stage3attack = true; // 공격 애니메이션
+	else if (state.boss.id == 5) {
+		if (state.boss.bossmode2) { // 땅 팜
+			state.boss.boss_statck++;
+			if (state.boss.boss_statck == 5) {
+				state.boss.boss_statck = 0;
+				state.boss.bossmode3 = true; // 공격 애니메이션
 				ApplyDamageToPlayer(state, 30);
 			}
 		}
 		else { // 지상
-			state.stack333++;
-			if (state.stack333 == 3) {
-				state.stage3mode = true;
+			state.boss.boss_statck++;
+			if (state.boss.boss_statck == 3) {
+				state.boss.bossmode2 = true;
 				state.dontattackcard = true; // 공격 카드 사용 금지
 			}
 			ApplyDamageToPlayer(state, 10);
@@ -1252,22 +1243,22 @@ void GameLogic::ExecuteEnemyAI(GameState& state)
 		}
 	}
 	// 스테이지 4-1 마트료시카
-	else if (state.bossId == 6) { // 공격20 방어 20
+	else if (state.boss.id == 6) { // 공격20 방어 20
 		ApplyDamageToPlayer(state, 20);
 		ApplyDefenseToEnemy(state, 20);
 	}
 	// 스테이지 4-2 관
-	else if (state.bossId == 7) { // 공격 20 방 20 3턴마다 무적 다음턴 30뎀
-		state.stack44++;
-		if (state.stack44 == 3) {
-			state.stage4attack = true;
-			state.nodamage = true; // 무적
+	else if (state.boss.id == 7) { // 공격 20 방 20 3턴마다 무적 다음턴 30뎀
+		state.boss.boss_statck++;
+		if (state.boss.boss_statck == 3) {
+			state.boss.bossmode3 = true;
+			state.boss.nodamageMode = true; // 무적
 		}
-		else if (state.stack44 == 4) {
-			state.stack44 = 0;
-			state.nodamage = false; // 무적 해제
+		else if (state.boss.boss_statck == 4) {
+			state.boss.boss_statck = 0;
+			state.boss.nodamageMode = false; // 무적 해제
 			ApplyDamageToPlayer(state, 30);
-			state.stage4attack = false;
+			state.boss.bossmode3 = false;
 		}
 		else {
 			ApplyDamageToPlayer(state, 20);
@@ -1275,8 +1266,8 @@ void GameLogic::ExecuteEnemyAI(GameState& state)
 		}
 	}
 	// 보스 스테이지
-	else if (state.bossId == 8) { // 노 각성 공 20 방 20 / 각성 공 30 방 30
-		if (state.bosspowerup) {
+	else if (state.boss.id == 8) { // 노 각성 공 20 방 20 / 각성 공 30 방 30
+		if (state.boss.bossAwakening) {
 			ApplyDamageToPlayer(state, 30);
 			ApplyDefenseToEnemy(state, 30);
 		}
@@ -1336,20 +1327,20 @@ void GameLogic::UpdateBattle_RealTime(GameState& state, float deltaTime)
 		}
 	}
 
-	//enemy update
-	if (state.enemy.hp <= 0) {
-		state.enemy.death = true;
+	//boss update
+	if (state.boss.hp <= 0) {
+		state.boss.death = true;
 		state.StartScreen = true;
 	}
 	if (state.player->onepunching) {
 		state.player->onepunchingcount = 1;
 	}
 	if (!state.dehp) {
-		state.enemy.attackTime += deltaTime;
+		state.boss.attackTime += deltaTime;
 	}
-	constexpr float enemyAttackDelay = 5;
-	if (state.enemy.attackTime > enemyAttackDelay && !state.enemy.death) { // 턴 시작
-		state.enemy.attackTime = 0;
+	constexpr float bossAttackDelay = 5;
+	if (state.boss.attackTime > bossAttackDelay && !state.boss.death) { // 턴 시작
+		state.boss.attackTime = 0;
 		state.droww = true; // 카드 드로우
 		ExecuteEnemyAI(state);
 	}
@@ -1368,10 +1359,10 @@ void GameLogic::UpdateBattle_RealTime(GameState& state, float deltaTime)
 			}
 		}
 
-		if (!state.enemy.death) {
-			state.enemy.animCount++;
-			if (state.enemy.animCount >= 3) { // 적 이미지 개수
-				state.enemy.animCount = 0;
+		if (!state.boss.death) {
+			state.boss.animCount++;
+			if (state.boss.animCount >= 3) { // 적 이미지 개수
+				state.boss.animCount = 0;
 			}
 		}
 	}
@@ -1379,63 +1370,63 @@ void GameLogic::UpdateBattle_RealTime(GameState& state, float deltaTime)
 
 void GameLogic::UpdateBuffsAndTimers(GameState& state, float deltaTime)
 {
-	if (state.enemy.defUp) { // 적 방어 업
-		state.enemy.defUpTime++;
-		if (state.enemy.defUpTime == 7) {
-			state.enemy.defUpTime = 0;
-			state.enemy.defUp = false;
+	if (state.boss.defUp) { // 적 방어 업
+		state.boss.defUpTime++;
+		if (state.boss.defUpTime == 7) {
+			state.boss.defUpTime = 0;
+			state.boss.defUp = false;
 		}
 	}
-	if (state.enemy.defDown) { // 적 방어 다운
-		state.enemy.defDownTime++;
-		if (state.enemy.defDownTime == 7) {
-			state.enemy.defDownTime = 0;
-			state.enemy.defDown = false;
+	if (state.boss.defDown) { // 적 방어 다운
+		state.boss.defDownTime++;
+		if (state.boss.defDownTime == 7) {
+			state.boss.defDownTime = 0;
+			state.boss.defDown = false;
 		}
 	}
 	if (state.dehp) { // 적 hp바 감소 모션
-		if (state.nodamage) {
+		if (state.boss.nodamageMode) {
 			state.damage = 0;
 		}
 
 		bool iscutting = false;
 		iscutting = state.players[0].cutting || (state.players[1].cutting || state.players[2].cutting);
 
-		if (state.enemy.defence != 0 && iscutting == false) {
-			int temp2 = state.enemy.defence;
-			state.enemy.defence = state.enemy.defence - state.enemy.DamageStack;
-			if (state.enemy.defence < 0) {
-				state.enemy.DamageStack = -state.enemy.defence;
-				state.enemy.defence = 0;
+		if (state.boss.defence != 0 && iscutting == false) {
+			int temp2 = state.boss.defence;
+			state.boss.defence = state.boss.defence - state.boss.DamageStack;
+			if (state.boss.defence < 0) {
+				state.boss.DamageStack = -state.boss.defence;
+				state.boss.defence = 0;
 				state.enermydeffdown = temp2;
 			}
 			else {
-				state.enermydeffdown = state.enemy.DamageStack;
+				state.enermydeffdown = state.boss.DamageStack;
 				state.damage = 0;
 			}
-			state.enemy.defDown = true;
-			state.enemy.defDownTime = 0;
+			state.boss.defDown = true;
+			state.boss.defDownTime = 0;
 		}
 
-		if (state.enemy.DamageStack == 0) {
+		if (state.boss.DamageStack == 0) {
 			state.dehptime = 0;
 			state.dehp = false;
 		}
 		else {
-			if (state.enemy.DamageStack >= 2) {
-				state.enemy.DamageStack -= 2;
+			if (state.boss.DamageStack >= 2) {
+				state.boss.DamageStack -= 2;
 				state.dehptime += 2;
-				state.enemy.hp -= 2;
+				state.boss.hp -= 2;
 			}
 			else {
-				state.enemy.DamageStack = 0;
+				state.boss.DamageStack = 0;
 				state.dehptime += 1;
-				state.enemy.hp -= 1;
+				state.boss.hp -= 1;
 			}
 		}
-		if (state.enemy.DamageStack <= 0 || state.enemy.hp <= 0) {
+		if (state.boss.DamageStack <= 0 || state.boss.hp <= 0) {
 			state.dehptime = 0;
-			state.enemy.DamageStack = 0;
+			state.boss.DamageStack = 0;
 			state.dehp = false;
 
 			//state.player.cutting = false;
@@ -1504,13 +1495,13 @@ void GameLogic::UpdateBuffsAndTimers(GameState& state, float deltaTime)
 			state.backgroundY = 0;
 		}
 	}
-	if (state.stage3attack) {
-		state.enemy.animCount++;
-		if (state.enemy.animCount >= 9) {
-			state.stage3attack = false;
+	if (state.boss.bossmode3) {
+		state.boss.animCount++;
+		if (state.boss.animCount >= 9) {
+			state.boss.bossmode3 = false;
 			state.dontattackcard = false;
-			state.stage3mode = false;
-			state.enemy.animCount = 0;
+			state.boss.bossmode2 = false;
+			state.boss.animCount = 0;
 		}
 	}
 
@@ -1521,16 +1512,6 @@ void GameLogic::UpdateBuffsAndTimers(GameState& state, float deltaTime)
 			state.boomcount = 0;
 			// *** 스테이지 클리어 처리 ***
 			state.endend = true; // 클리어 자막 시작
-			// (현재 스테이지 클리어 플래그 설정)
-			/*if (state.mapPlayerX == state.stages[0].x && state.mapPlayerY == state.stages[0].y) state.stages[0].clear = true;
-			else if (state.mapPlayerX == state.stages[1].x && state.mapPlayerY == state.stages[1].y) state.stages[1].clear = true;
-			else if (state.mapPlayerX == state.stages[2].x && state.mapPlayerY == state.stages[2].y) state.stages[2].clear = true;
-			else if (state.mapPlayerX == state.stages[3].x && state.mapPlayerY == state.stages[3].y) state.stages[3].clear = true;
-			else if (state.mapPlayerX == state.stages[4].x && state.mapPlayerY == state.stages[4].y) state.stages[4].clear = true;
-			else if (state.mapPlayerX == state.stages[5].x && state.mapPlayerY == state.stages[5].y) state.stages[5].clear = true;
-			else if (state.mapPlayerX == state.stages[6].x && state.mapPlayerY == state.stages[6].y) state.stages[6].clear = true;
-			else if (state.mapPlayerX == state.stages[7].x && state.mapPlayerY == state.stages[7].y) state.stages[7].clear = true;
-			else if (state.mapPlayerX == state.stages[8].x && state.mapPlayerY == state.stages[8].y) state.stages[8].clear = true;*/
 		}
 	}
 
@@ -1546,12 +1527,12 @@ void GameLogic::UpdateBuffsAndTimers(GameState& state, float deltaTime)
 		state.swordcount++;
 		if (state.swordcount >= 5) { state.sword = false; state.swordcount = 0; }
 	}
-	if (state.enemy.attackTime > 0 && state.enemy.attackTime < 22) { // 적 공격 모션
-		if (state.enemy.attackTime == 2) {
-			state.enemy.x -= 100;
+	if (state.boss.attackTime > 0 && state.boss.attackTime < 22) { // boss 공격 모션
+		if (state.boss.attackTime == 2) {
+			state.boss.x -= 100;
 		}
-		else if (state.enemy.attackTime == 3) {
-			state.enemy.x += 100;
+		else if (state.boss.attackTime == 3) {
+			state.boss.x += 100;
 		}
 	}
 
@@ -1617,25 +1598,25 @@ void GameLogic::UpdateBuffsAndTimers(GameState& state, float deltaTime)
 				ead.myheal = false;
 			}
 		}
-		if (state.enemy.heal) { // 적 hp바 회복 모션
-			if (state.bossstage) {
-				state.enemy.healTime += 20;
-				if (state.enemy.hp < 100) {
-					state.enemy.hp += 20;
+		if (state.boss.heal) { // boss hp바 회복 모션
+			if (state.boss.id == 8) {
+				state.boss.healTime += 20;
+				if (state.boss.hp < 100) {
+					state.boss.hp += 20;
 				}
 			}
 			else {
-				state.enemy.healTime++;
-				if (state.enemy.hp < 100) {
-					state.enemy.hp++;
+				state.boss.healTime++;
+				if (state.boss.hp < 100) {
+					state.boss.hp++;
 				}
 			}
 			// (최대 HP 초과 방지)
-			if (state.enemy.hp > 100) state.enemy.hp = 100;
+			if (state.boss.hp > 100) state.boss.hp = 100;
 
-			if (state.enemy.healTime >= state.enemy.healEnergy) {
-				state.enemy.healTime = 0;
-				state.enemy.heal = false;
+			if (state.boss.healTime >= state.boss.healEnergy) {
+				state.boss.healTime = 0;
+				state.boss.heal = false;
 			}
 		}
 
@@ -1674,9 +1655,7 @@ void GameLogic::StartBattle(GameState& state)
 {
 	state.startstart = true;
 	state.droww = true;
-	state.enemy.death = false;
 	state.startstarttime = 0;
-	state.bossId = rand() % 9;
 
 	//$Chang Player Init
 	for (int i = 0; i < GameState::playerCount; ++i) {
@@ -1693,73 +1672,79 @@ void GameLogic::StartBattle(GameState& state)
 	state.boomswitch = false;
 	state.boomcount = 0;
 	state.isPlayerTurn = true;
-	state.enemy.attackTime = 0;
 
-	if (state.bossId == 0) {
-		state.enemy.hp = 100;
-		state.enemy.defence = 0;
-		state.enemy.x = 825;
-		state.enemy.y = 350;
-	}
-	else if (state.bossId == 1) {
-		state.enemy.hp = 100;
-		state.enemy.defence = 15;
-		state.enemy.x = 825;
-		state.enemy.y = 250;
-	}
-	else if (state.bossId == 2) {
-		state.enemy.hp = 100;
-		state.enemy.defence = 15;
-		state.enemy.x = 825;
-		state.enemy.y = 250;
-	}
-	else if (state.bossId == 3) {
-		state.enemy.hp = 100;
-		state.enemy.defence = 20;
-		state.stage3mode = false;
-		state.stack333 = 0;
-		state.enemy.x = 755;
-		state.enemy.y = 180;
-	}
-	else if (state.bossId == 4) {
-		state.enemy.hp = 100;
-		state.enemy.defence = 30;
-		state.enemy.x = 820;
-		state.enemy.y = 200;
-	}
-	else if (state.bossId == 5) {
-		state.enemy.hp = 100;
-		state.enemy.defence = 20;
-		state.stage3mode = false;
-		state.stack333 = 0;
-		state.enemy.x = 825;
-		state.enemy.y = 250;
-	}
-	else if (state.bossId == 6) {
-		state.enemy.hp = 100;
-		state.enemy.defence = 20;
-		state.stack44 = 0;
-		state.enemy.x = 755;
-		state.enemy.y = 180;
-	}
-	else if (state.bossId == 7) {
-		state.enemy.hp = 100;
-		state.enemy.defence = 20;
-		state.nodamage = false;
-		state.stage4attack = false;
-		state.stack44 = 0;
-		state.enemy.x = 755;
-		state.enemy.y = 180;
-	}
-	else if (state.bossId == 8) {
-		state.enemy.hp = 100;
-		state.enemy.defence = 20;
-		state.bosspowerup = false;
-		state.enemy.x = 755;
-		state.enemy.y = 220;
-	}
+	if (state.PvEMode) { //레이드
+		state.boss.attackTime = 0;
+		state.boss.death = false;
+		state.boss.id = rand() % 9;
 
-	state.bossstage = false;
+		if (state.boss.id == 0) {
+			state.boss.hp = 100;
+			state.boss.defence = 0;
+			state.boss.x = 825;
+			state.boss.y = 350;
+		}
+		else if (state.boss.id == 1) {
+			state.boss.hp = 100;
+			state.boss.defence = 15;
+			state.boss.x = 825;
+			state.boss.y = 250;
+		}
+		else if (state.boss.id == 2) {
+			state.boss.hp = 100;
+			state.boss.defence = 15;
+			state.boss.x = 825;
+			state.boss.y = 250;
+		}
+		else if (state.boss.id == 3) {
+			state.boss.hp = 100;
+			state.boss.defence = 20;
+			state.boss.bossmode2 = false;
+			state.boss.boss_statck = 0;
+			state.boss.x = 755;
+			state.boss.y = 180;
+		}
+		else if (state.boss.id == 4) {
+			state.boss.hp = 100;
+			state.boss.defence = 30;
+			state.boss.x = 820;
+			state.boss.y = 200;
+		}
+		else if (state.boss.id == 5) {
+			state.boss.hp = 100;
+			state.boss.defence = 20;
+			state.boss.bossmode2 = false;
+			state.boss.boss_statck = 0;
+			state.boss.x = 825;
+			state.boss.y = 250;
+		}
+		else if (state.boss.id == 6) {
+			state.boss.hp = 100;
+			state.boss.defence = 20;
+			state.boss.boss_statck = 0;
+			state.boss.x = 755;
+			state.boss.y = 180;
+		}
+		else if (state.boss.id == 7) {
+			state.boss.hp = 100;
+			state.boss.defence = 20;
+			state.boss.nodamageMode = false;
+			state.boss.bossmode3 = false;
+			state.boss.boss_statck = 0;
+			state.boss.x = 755;
+			state.boss.y = 180;
+		}
+		else if (state.boss.id == 8) {
+			state.boss.hp = 100;
+			state.boss.defence = 20;
+			state.boss.bossAwakening = false;
+			state.boss.x = 755;
+			state.boss.y = 220;
+		}
+	}
+	else { // pvp
+
+	}
 }
 
 void GameLogic::PlayCard(GameState& state, int i, int playerindex) {
@@ -1800,7 +1785,7 @@ void GameLogic::PlayCard(GameState& state, int i, int playerindex) {
 		card.on = false;
 		card.id = rand() % 15;
 		state.sword = true;
-		state.enemy.DamageStack += state.damage;
+		state.boss.DamageStack += state.damage;
 	}
 	// Card ID 1: 심판 (Cost 3, Attack 90, Attack resets)
 	else if (card.id == 1 && player.mana >= 3) {
@@ -1816,7 +1801,7 @@ void GameLogic::PlayCard(GameState& state, int i, int playerindex) {
 		player.mana -= 3; state.killmana = 3; player.effect_anim_data.manaDown = true; player.effect_anim_data.manaDownTime = 0;
 		state.dehp = true;
 		card.on = false; card.id = rand() % 15; state.sword = true;
-		state.enemy.DamageStack += state.damage;
+		state.boss.DamageStack += state.damage;
 	}
 	// Card ID 2: 강타 (Cost 2, Attack 60, Attack resets)
 	else if (card.id == 2 && player.mana >= 2) {
@@ -1828,7 +1813,7 @@ void GameLogic::PlayCard(GameState& state, int i, int playerindex) {
 		}
 		state.dehp = true;
 		card.on = false; card.id = rand() % 15; state.sword = true;
-		state.enemy.DamageStack += state.damage;
+		state.boss.DamageStack += state.damage;
 	}
 	// Card ID 3: 자세잡기 (Cost 1, Defense +3, Mana +1)
 	else if (card.id == 3 && player.mana >= 1) {
@@ -1843,7 +1828,7 @@ void GameLogic::PlayCard(GameState& state, int i, int playerindex) {
 		state.defenseup = 3;
 		player.defence += 3;
 		card.on = false; card.id = rand() % 15; player.effect_anim_data.tekai = true;
-		state.enemy.DamageStack += state.damage;
+		state.boss.DamageStack += state.damage;
 	}
 	// Card ID 4: 돌진 (Cost 2, Attack 40, Defense +10, Attack resets)
 	else if (card.id == 4 && player.mana >= 2) {
@@ -1863,7 +1848,7 @@ void GameLogic::PlayCard(GameState& state, int i, int playerindex) {
 		state.defenseup = 10;
 		player.defence += 10;
 		card.on = false; card.id = rand() % 15; state.sword = true;
-		state.enemy.DamageStack += state.damage;
+		state.boss.DamageStack += state.damage;
 	}
 	// Card ID 5: 대검휘두르기 (Cost 1, Attack 50, Attack resets)
 	else if (card.id == 5 && player.mana >= 1) {
@@ -1881,7 +1866,7 @@ void GameLogic::PlayCard(GameState& state, int i, int playerindex) {
 		}
 		state.dehp = true;
 		card.on = false; card.id = rand() % 15; state.sword = true;
-		state.enemy.DamageStack += state.damage;
+		state.boss.DamageStack += state.damage;
 	}
 	// Card ID 6: 바리게이트 (Cost 2, Defense x2)
 	else if (card.id == 6 && player.mana >= 2) {
@@ -1896,7 +1881,7 @@ void GameLogic::PlayCard(GameState& state, int i, int playerindex) {
 		card.on = false;
 		card.id = rand() % 15;
 		player.effect_anim_data.tekai = true;
-		state.enemy.DamageStack += state.damage;
+		state.boss.DamageStack += state.damage;
 	}
 	// Card ID 7: 방패 밀쳐내기 (Cost 1, Attack = Defense, Attack resets)
 	else if (card.id == 7 && player.mana >= 1) {
@@ -1908,7 +1893,7 @@ void GameLogic::PlayCard(GameState& state, int i, int playerindex) {
 		}
 		state.dehp = true;
 		card.on = false; card.id = rand() % 15; state.sword = true;
-		state.enemy.DamageStack += state.damage;
+		state.boss.DamageStack += state.damage;
 	}
 	// Card ID 8: 굳건한 태세 (Cost 2, Block next attack)
 	else if (card.id == 8 && player.mana >= 2) {
@@ -1933,7 +1918,7 @@ void GameLogic::PlayCard(GameState& state, int i, int playerindex) {
 		state.dehp = true;
 		player.cutting = true;
 		card.on = false; card.id = rand() % 15; state.sword = true;
-		state.enemy.DamageStack += state.damage;
+		state.boss.DamageStack += state.damage;
 	}
 	// Card ID 11: 일격 (Cost 3, Attack 140 next turn, Attack resets)
 	else if (card.id == 11 && player.mana >= 3) {
@@ -1946,7 +1931,7 @@ void GameLogic::PlayCard(GameState& state, int i, int playerindex) {
 		player.onepunchingcount = 0;
 		player.onepunchingcounttime = 0;
 		card.on = false; card.id = rand() % 15;
-		state.enemy.DamageStack += state.damage;
+		state.boss.DamageStack += state.damage;
 	}
 	// Card ID 12: 고속 이동 (Cost 2, Defense +5, Mana +1)
 	else if (card.id == 12 && player.mana >= 2) {
@@ -1969,7 +1954,7 @@ void GameLogic::PlayCard(GameState& state, int i, int playerindex) {
 		player.hp -= 10;
 		player.effect_anim_data.decresehp = true;
 		card.on = false; card.id = rand() % 15; state.sword = true;
-		state.enemy.DamageStack += state.damage;
+		state.boss.DamageStack += state.damage;
 	}
 	// Card ID 14: 정조준 (Cost 1, Next Attack +20)
 	else if (card.id == 14 && player.mana >= 1) {
@@ -1991,7 +1976,7 @@ void GameLogic::PlayCard(GameState& state, int i, int playerindex) {
 
 void GameLogic::ApplyDamageToPlayer(GameState& state, int damage, int playerindex) {
 	Player& player = state.players[playerindex];
-	state.enemy.attackTime = 1;
+	state.boss.attackTime = 1;
 	player.effect_anim_data.hurt = true;
 
 	if (player.effect_anim_data.holiShild) {
@@ -2017,10 +2002,10 @@ void GameLogic::ApplyDamageToPlayer(GameState& state, int damage, int playerinde
 }
 
 void GameLogic::ApplyDefenseToEnemy(GameState& state, int defense) {
-	state.enemy.defUp = true;
-	state.enemy.defUpTime = 0; // 타이머 리셋
+	state.boss.defUp = true;
+	state.boss.defUpTime = 0; // 타이머 리셋
 	state.enermydeff = defense;
-	state.enemy.defence += defense;
+	state.boss.defence += defense;
 }
 
 void Renderer::Render(HDC hdc, RECT rt, const GameState& state, const AssetManager& assets) {
@@ -2138,8 +2123,8 @@ void Renderer::DrawPVEScreen(HDC hdc, HDC imgDC, const GameState& state, const A
 
 	hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitShild);
 	TransparentBlt(hdc, 500, 20, 50, 50, imgDC, 0, 0, assets.ShildWidth, assets.ShildHeight, RGB(255, 255, 255));
-	if (!state.enemy.death) {
-		TransparentBlt(hdc, state.enemy.x, state.enemy.y - 100, 50, 50, imgDC, 0, 0, assets.ShildWidth, assets.ShildHeight, RGB(255, 255, 255));
+	if (!state.boss.death) {
+		TransparentBlt(hdc, state.boss.x, state.boss.y - 100, 50, 50, imgDC, 0, 0, assets.ShildWidth, assets.ShildHeight, RGB(255, 255, 255));
 	}
 
 	SelectObject(imgDC, assets.hBitattack);
@@ -2296,36 +2281,36 @@ void Renderer::DrawHUD(HDC hdc, const GameState& state) {
 		SelectObject(hdc, hOldFont);
 		DeleteObject(hFont);
 
-		if (!state.enemy.death) {
-			HPBar(hdc, state.enemy.x + 75, state.enemy.y - 30, state.enemy.hp);
+		if (!state.boss.death) {
+			HPBar(hdc, state.boss.x + 75, state.boss.y - 30, state.boss.hp);
 
 			hFont = CreateFont(40, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Arial");
 			hOldFont = (HFONT)SelectObject(hdc, hFont);
 			SetBkMode(hdc, TRANSPARENT);
 			SetTextColor(hdc, RGB(0, 33, 255));
-			wsprintf(tempBuffer, L"%d", state.enemy.defence);
-			TextOut(hdc, state.enemy.x + 75, state.enemy.y - 95, tempBuffer, lstrlen(tempBuffer));
+			wsprintf(tempBuffer, L"%d", state.boss.defence);
+			TextOut(hdc, state.boss.x + 75, state.boss.y - 95, tempBuffer, lstrlen(tempBuffer));
 
-			if (state.enemy.defUp) {
+			if (state.boss.defUp) {
 				SetTextColor(hdc, RGB(150, 133, 133));
 				wsprintf(tempBuffer, L"+%d", state.enermydeff);
-				TextOut(hdc, state.enemy.x + 115, state.enemy.y - 102, tempBuffer, lstrlen(tempBuffer));
+				TextOut(hdc, state.boss.x + 115, state.boss.y - 102, tempBuffer, lstrlen(tempBuffer));
 			}
-			if (state.enemy.defDown) {
+			if (state.boss.defDown) {
 				SetTextColor(hdc, RGB(150, 133, 133));
 				wsprintf(tempBuffer, L"-%d", state.enermydeffdown);
-				TextOut(hdc, state.enemy.x + 115, state.enemy.y - 110, tempBuffer, lstrlen(tempBuffer));
+				TextOut(hdc, state.boss.x + 115, state.boss.y - 110, tempBuffer, lstrlen(tempBuffer));
 			}
 			// 적 HP 효과 (데미지/힐 텍스트)
 			if (state.dehp) {
 				SetTextColor(hdc, RGB(200, 33, 33));
 				wsprintf(tempBuffer, L"-%d", state.damage);
-				TextOut(hdc, state.enemy.x + 115, state.enemy.y - 100, tempBuffer, lstrlen(tempBuffer));
+				TextOut(hdc, state.boss.x + 115, state.boss.y - 100, tempBuffer, lstrlen(tempBuffer));
 			}
-			if (state.enemy.heal) {
+			if (state.boss.heal) {
 				SetTextColor(hdc, RGB(33, 200, 33));
-				wsprintf(tempBuffer, L"+%d", state.enemy.healEnergy);
-				TextOut(hdc, state.enemy.x + 115, state.enemy.y - 100, tempBuffer, lstrlen(tempBuffer));
+				wsprintf(tempBuffer, L"+%d", state.boss.healEnergy);
+				TextOut(hdc, state.boss.x + 115, state.boss.y - 100, tempBuffer, lstrlen(tempBuffer));
 			}
 			SelectObject(hdc, hOldFont);
 			DeleteObject(hFont);
@@ -2335,7 +2320,7 @@ void Renderer::DrawHUD(HDC hdc, const GameState& state) {
 				oldPen = (HPEN)SelectObject(hdc, hPen);
 				HBRUSH myBrush = (HBRUSH)GetStockObject(NULL_BRUSH);
 				HBRUSH oldBrush = (HBRUSH)SelectObject(hdc, myBrush);
-				Rectangle(hdc, state.enemy.x - 70, state.enemy.y - 60, state.enemy.x + 70, state.enemy.y + 60);
+				Rectangle(hdc, state.boss.x - 70, state.boss.y - 60, state.boss.x + 70, state.boss.y + 60);
 				SelectObject(hdc, oldBrush);
 				SelectObject(hdc, oldPen);
 				DeleteObject(hPen);
@@ -2377,72 +2362,74 @@ void Renderer::DrawCharacters(HDC hdc, HDC imgDC, const GameState& state, const 
 	}
 
 	// 적
-	if (!state.enemy.death) {
-		if (state.bossId == 0) {
-			SelectObject(imgDC, assets.Enermy1[state.enemy.animCount % 3]);
-			TransparentBlt(hdc, state.enemy.x, state.enemy.y, 150, 100, imgDC, 0, 0, assets.enermy1Width, assets.enermy1Height, RGB(100, 100, 100));
-		}
-		else if (state.bossId == 1) {
-			SelectObject(imgDC, assets.Enermy2[state.enemy.animCount % 3]);
-			TransparentBlt(hdc, state.enemy.x, state.enemy.y, 150, 200, imgDC, 0, 0, assets.enermy2Width, assets.enermy2Height, RGB(100, 100, 100));
-		}
-		else if (state.bossId == 2) {
-			SelectObject(imgDC, assets.Enermy3[state.enemy.animCount % 3]);
-			TransparentBlt(hdc, state.enemy.x, state.enemy.y, 150, 200, imgDC, 0, 0, assets.enermy3Width, assets.enermy3Height, RGB(100, 100, 100));
-		}
-		else if (state.bossId == 3) {
-			if (state.stage3mode) {
-				SelectObject(imgDC, assets.Enermy5[state.enemy.animCount % 3]);
+	if (state.PvEMode) {
+		if (!state.boss.death) {
+			if (state.boss.id == 0) {
+				SelectObject(imgDC, assets.Boss1[state.boss.animCount % 3]);
+				TransparentBlt(hdc, state.boss.x, state.boss.y, 150, 100, imgDC, 0, 0, assets.enermy1Width, assets.enermy1Height, RGB(100, 100, 100));
 			}
-			else {
-				SelectObject(imgDC, assets.Enermy4[state.enemy.animCount % 3]);
+			else if (state.boss.id == 1) {
+				SelectObject(imgDC, assets.Boss2[state.boss.animCount % 3]);
+				TransparentBlt(hdc, state.boss.x, state.boss.y, 150, 200, imgDC, 0, 0, assets.enermy2Width, assets.enermy2Height, RGB(100, 100, 100));
 			}
-			TransparentBlt(hdc, state.enemy.x, state.enemy.y, 250, 300, imgDC, 0, 0, assets.enermy4Width, assets.enermy4Height, RGB(100, 100, 100));
-		}
-		else if (state.bossId == 4) {
-			SelectObject(imgDC, assets.Enermy6[state.enemy.animCount % 3]);
-			TransparentBlt(hdc, state.enemy.x, state.enemy.y, 200, 250, imgDC, 0, 0, assets.enermy5Width, assets.enermy5Height, RGB(100, 100, 100));
-		}
-		else if (state.bossId == 5) { // 두더지
-			if (state.stage3mode) {
-				if (state.stage3attack) { // 공격 모션 
-					int frameIndex = state.enemy.animCount / 3; // 0,0,0, 1,1,1, 2,2,2
-					if (frameIndex > 2) frameIndex = 2;
-					SelectObject(imgDC, assets.Enermy9[frameIndex]);
+			else if (state.boss.id == 2) {
+				SelectObject(imgDC, assets.Boss3[state.boss.animCount % 3]);
+				TransparentBlt(hdc, state.boss.x, state.boss.y, 150, 200, imgDC, 0, 0, assets.enermy3Width, assets.enermy3Height, RGB(100, 100, 100));
+			}
+			else if (state.boss.id == 3) {
+				if (state.boss.bossmode2) {
+					SelectObject(imgDC, assets.Boss5[state.boss.animCount % 3]);
 				}
-				else { // 땅 속
-					SelectObject(imgDC, assets.Enermy8[state.enemy.animCount % 3]);
+				else {
+					SelectObject(imgDC, assets.Boss4[state.boss.animCount % 3]);
 				}
+				TransparentBlt(hdc, state.boss.x, state.boss.y, 250, 300, imgDC, 0, 0, assets.enermy4Width, assets.enermy4Height, RGB(100, 100, 100));
 			}
-			else { // 지상
-				SelectObject(imgDC, assets.Enermy7[state.enemy.animCount % 5]);
+			else if (state.boss.id == 4) {
+				SelectObject(imgDC, assets.Boss6[state.boss.animCount % 3]);
+				TransparentBlt(hdc, state.boss.x, state.boss.y, 200, 250, imgDC, 0, 0, assets.enermy5Width, assets.enermy5Height, RGB(100, 100, 100));
 			}
-			TransparentBlt(hdc, state.enemy.x, state.enemy.y, 400, 250, imgDC, 0, 0, assets.enermy6Width, assets.enermy6Height, RGB(255, 255, 255));
-		}
-		else if (state.bossId == 6) { // 마트료시카
-			if (state.stack44 == 0) SelectObject(imgDC, assets.Enermy10[state.enemy.animCount % 3]);
-			else if (state.stack44 == 1) SelectObject(imgDC, assets.Enermy11[state.enemy.animCount % 3]);
-			else if (state.stack44 == 2) SelectObject(imgDC, assets.Enermy12[state.enemy.animCount % 3]);
-			else SelectObject(imgDC, assets.Enermy13[state.enemy.animCount % 3]);
-			TransparentBlt(hdc, state.enemy.x, state.enemy.y, 250, 300, imgDC, 0, 0, assets.enermy7Width, assets.enermy7Height, RGB(255, 255, 255));
-		}
-		else if (state.bossId == 7) { // 관
-			if (state.stage4attack) {
-				SelectObject(imgDC, assets.Enermy15[state.enemy.animCount % 3]);
+			else if (state.boss.id == 5) { // 두더지
+				if (state.boss.bossmode2) {
+					if (state.boss.bossmode3) { // 공격 모션 
+						int frameIndex = state.boss.animCount / 3; // 0,0,0, 1,1,1, 2,2,2
+						if (frameIndex > 2) frameIndex = 2;
+						SelectObject(imgDC, assets.Boss9[frameIndex]);
+					}
+					else { // 땅 속
+						SelectObject(imgDC, assets.Boss8[state.boss.animCount % 3]);
+					}
+				}
+				else { // 지상
+					SelectObject(imgDC, assets.Boss7[state.boss.animCount % 5]);
+				}
+				TransparentBlt(hdc, state.boss.x, state.boss.y, 400, 250, imgDC, 0, 0, assets.enermy6Width, assets.enermy6Height, RGB(255, 255, 255));
 			}
-			else {
-				SelectObject(imgDC, assets.Enermy14[state.enemy.animCount % 3]);
+			else if (state.boss.id == 6) { // 마트료시카
+				if (state.boss.boss_statck == 0) SelectObject(imgDC, assets.Boss10[state.boss.animCount % 3]);
+				else if (state.boss.boss_statck == 1) SelectObject(imgDC, assets.Boss11[state.boss.animCount % 3]);
+				else if (state.boss.boss_statck == 2) SelectObject(imgDC, assets.Boss12[state.boss.animCount % 3]);
+				else SelectObject(imgDC, assets.Boss13[state.boss.animCount % 3]);
+				TransparentBlt(hdc, state.boss.x, state.boss.y, 250, 300, imgDC, 0, 0, assets.enermy7Width, assets.enermy7Height, RGB(255, 255, 255));
 			}
-			TransparentBlt(hdc, state.enemy.x, state.enemy.y, 250, 300, imgDC, 0, 0, assets.enermy8Width, assets.enermy8Height, RGB(255, 255, 255));
-		}
-		else if (state.bossId == 8) {
-			if (state.bosspowerup) {
-				SelectObject(imgDC, assets.Enermy17[state.enemy.animCount % 6]);
-				TransparentBlt(hdc, state.enemy.x - 100, state.enemy.y - 50, 600, 400, imgDC, 0, 0, assets.enermy10Width, assets.enermy10Height, RGB(88, 88, 88));
+			else if (state.boss.id == 7) { // 관
+				if (state.boss.bossmode3) {
+					SelectObject(imgDC, assets.Boss15[state.boss.animCount % 3]);
+				}
+				else {
+					SelectObject(imgDC, assets.Boss14[state.boss.animCount % 3]);
+				}
+				TransparentBlt(hdc, state.boss.x, state.boss.y, 250, 300, imgDC, 0, 0, assets.enermy8Width, assets.enermy8Height, RGB(255, 255, 255));
 			}
-			else {
-				SelectObject(imgDC, assets.Enermy16[state.enemy.animCount % 6]);
-				TransparentBlt(hdc, state.enemy.x, state.enemy.y, 275, 150, imgDC, 0, 0, assets.enermy9Width, assets.enermy9Height, RGB(88, 88, 88));
+			else if (state.boss.id == 8) {
+				if (state.boss.bossAwakening) {
+					SelectObject(imgDC, assets.Boss17[state.boss.animCount % 6]);
+					TransparentBlt(hdc, state.boss.x - 100, state.boss.y - 50, 600, 400, imgDC, 0, 0, assets.enermy10Width, assets.enermy10Height, RGB(88, 88, 88));
+				}
+				else {
+					SelectObject(imgDC, assets.Boss16[state.boss.animCount % 6]);
+					TransparentBlt(hdc, state.boss.x, state.boss.y, 275, 150, imgDC, 0, 0, assets.enermy9Width, assets.enermy9Height, RGB(88, 88, 88));
+				}
 			}
 		}
 	}
@@ -2455,24 +2442,24 @@ void Renderer::DrawCharacters(HDC hdc, HDC imgDC, const GameState& state, const 
 void Renderer::DrawEffects(HDC hdc, HDC imgDC, const GameState& state, const AssetManager& assets) {
 	HBITMAP hOldImg = NULL;
 	// 폭발 이펙트
-	if (state.boomswitch && !state.enemy.death) {
+	if (state.boomswitch && !state.boss.death) {
 		hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitBoom[state.boomcount]);
-		TransparentBlt(hdc, state.enemy.x, state.enemy.y, 150, 150, imgDC, 0, 0, assets.BoomWidth, assets.BoomHeight, RGB(255, 255, 255));
+		TransparentBlt(hdc, state.boss.x, state.boss.y, 150, 150, imgDC, 0, 0, assets.BoomWidth, assets.BoomHeight, RGB(255, 255, 255));
 	}
 	// 정조준 이펙트
 	if (state.Sniper) {
 		hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitSniper[state.snipercount]);
-		TransparentBlt(hdc, state.enemy.x - 50, state.enemy.y - 100, 200, 200, imgDC, 0, 0, assets.sniperWidth, assets.sniperHeight, RGB(255, 255, 255));
+		TransparentBlt(hdc, state.boss.x - 50, state.boss.y - 100, 200, 200, imgDC, 0, 0, assets.sniperWidth, assets.sniperHeight, RGB(255, 255, 255));
 	}
 	// 일격 이펙트
 	if (state.One) {
 		hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitOne[state.Onecount]);
-		TransparentBlt(hdc, state.enemy.x - 300, state.enemy.y - 100, 600, 200, imgDC, 0, 0, assets.OneWidth, assets.OneHeight, RGB(255, 255, 255));
+		TransparentBlt(hdc, state.boss.x - 300, state.boss.y - 100, 600, 200, imgDC, 0, 0, assets.OneWidth, assets.OneHeight, RGB(255, 255, 255));
 	}
 	// 기본 공격 이펙트
 	if (state.sword) {
 		hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitsword[state.swordcount]);
-		TransparentBlt(hdc, state.enemy.x - 200, state.enemy.y - 180, 500, 500, imgDC, 0, 0, assets.swordWidth, assets.swordHeight, RGB(255, 255, 255));
+		TransparentBlt(hdc, state.boss.x - 200, state.boss.y - 180, 500, 500, imgDC, 0, 0, assets.swordWidth, assets.swordHeight, RGB(255, 255, 255));
 	}
 
 	//$Chang
