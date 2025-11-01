@@ -101,7 +101,7 @@ struct InputData {
 };
 InputData inputdata;
 
-char MapData[5][5] = {};
+char MapData[5][5] = { };
 constexpr float MapMoveMargin = 100;
 constexpr float MapCenterX = 225;
 constexpr float MapCenterY = 250;
@@ -960,8 +960,6 @@ void GameLogic::Initialize(GameState& state)
 	state.player->pos.x = 0;
 	state.player->pos.y = 0;
 	state.player->defence = 0;
-	//state.mapPlayerX = state.stages[0].x;
-	//state.mapPlayerY = state.stages[0].y;
 }
 
 void GameLogic::Update(GameState& state)
@@ -1060,6 +1058,7 @@ void GameLogic::HandleLButtonDown(GameState& state, int x, int y, HWND hWnd)
 		if (x >= 900 && x <= 1150 && y >= 450 && y <= 500) { // pvp
 			state.StartScreen = false;
 			state.PvEMode = false;
+			MapData[0][0] = 2;
 			StartBattle(state);
 		}
 		if (x >= 900 && x <= 1150 && y >= 530 && y <= 580) { // 레이드
@@ -1327,22 +1326,24 @@ void GameLogic::UpdateBattle_RealTime(GameState& state, float deltaTime)
 		}
 	}
 
-	//boss update
-	if (state.boss.hp <= 0) {
-		state.boss.death = true;
-		state.StartScreen = true;
-	}
-	if (state.player->onepunching) {
-		state.player->onepunchingcount = 1;
-	}
-	if (!state.dehp) {
-		state.boss.attackTime += deltaTime;
-	}
-	constexpr float bossAttackDelay = 5;
-	if (state.boss.attackTime > bossAttackDelay && !state.boss.death) { // 턴 시작
-		state.boss.attackTime = 0;
-		state.droww = true; // 카드 드로우
-		ExecuteEnemyAI(state);
+	if (state.PvEMode) {
+		//boss update
+		if (state.boss.hp <= 0) {
+			state.boss.death = true;
+			state.StartScreen = true;
+		}
+		if (state.player->onepunching) {
+			state.player->onepunchingcount = 1;
+		}
+		if (!state.dehp) {
+			state.boss.attackTime += deltaTime;
+		}
+		constexpr float bossAttackDelay = 5;
+		if (state.boss.attackTime > bossAttackDelay && !state.boss.death) { // 턴 시작
+			state.boss.attackTime = 0;
+			state.droww = true; // 카드 드로우
+			ExecuteEnemyAI(state);
+		}
 	}
 
 	//animation
@@ -2099,14 +2100,36 @@ void Renderer::DrawPvPScreen(HDC hdc, HDC imgDC, const GameState& state, const A
 	SelectObject(imgDC, hOldImg);
 
 	//Draw Map
-	SelectObject(hdc, hRedPen);
+	HBRUSH hBlueBrush = CreateSolidBrush(RGB(0, 0, 255));
+	HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, hBlueBrush);
 	constexpr float rateW = 0.4f;
-	constexpr float rateH = 0.8f;
-	for (int i = -2; i < 3; ++i) {
-		MoveToEx(hdc, MapCenterX + MapMoveMargin * i + PlayerW * rateW, MapCenterX - 2 * MapMoveMargin + PlayerH * rateH, NULL);
-		LineTo(hdc, MapCenterX + MapMoveMargin * i + PlayerW * rateW, MapCenterX + 2 * MapMoveMargin + PlayerH * rateH);
-		MoveToEx(hdc, MapCenterX - 2 * MapMoveMargin + PlayerW * rateW, MapCenterX + MapMoveMargin * i + PlayerH * rateH, NULL);
-		LineTo(hdc, MapCenterX + 2 * MapMoveMargin + PlayerW * rateW, MapCenterX + MapMoveMargin * i + PlayerH * rateH);
+	constexpr float rateH = 0.4f;
+	float offsetX = PlayerW * rateW;
+	float offsetY = PlayerH * rateH;
+	// 데미지 영역 미리 알려주고
+	for (int y = 0; y < 5; ++y) {
+		for (int x = 0; x < 5; ++x) {
+			if (MapData[y][x] == 2) {
+				float left = MapCenterX + (x - (5.0f / 2.0f)) * MapMoveMargin + offsetX;
+				float top = MapCenterY + (y - (5.0f / 2.0f)) * MapMoveMargin + offsetY;
+				float right = left + MapMoveMargin;
+				float bottom = top + MapMoveMargin;
+				RECT cellRect;
+				SetRect(&cellRect, (int)left, (int)top, (int)right, (int)bottom);
+				FillRect(hdc, &cellRect, hBlueBrush);
+			}
+		}
+	}
+	SelectObject(hdc, hOldBrush);
+	DeleteObject(hBlueBrush); 
+	// 5x5 맵
+	SelectObject(hdc, hRedPen);
+	for (int i = 0; i <= 5; ++i) {
+		float lineOffset = (i - (5.0f / 2.0f)) * MapMoveMargin;
+		MoveToEx(hdc, MapCenterX + lineOffset + offsetX, MapCenterY - (5.0f / 2.0f) * MapMoveMargin + offsetY, NULL);
+		LineTo(hdc, MapCenterX + lineOffset + offsetX, MapCenterY + (5.0f / 2.0f) * MapMoveMargin + offsetY);
+		MoveToEx(hdc, MapCenterX - (5.0f / 2.0f) * MapMoveMargin + offsetX, MapCenterY + lineOffset + offsetY, NULL);
+		LineTo(hdc, MapCenterX + (5.0f / 2.0f) * MapMoveMargin + offsetX, MapCenterY + lineOffset + offsetY);
 	}
 
 	DrawHand(hdc, imgDC, state, assets);
@@ -2146,12 +2169,15 @@ void Renderer::DrawPVEScreen(HDC hdc, HDC imgDC, const GameState& state, const A
 	//Draw Map
 	SelectObject(hdc, hRedPen);
 	constexpr float rateW = 0.4f;
-	constexpr float rateH = 0.8f;
-	for (int i = -2; i < 3; ++i) {
-		MoveToEx(hdc, MapCenterX + MapMoveMargin * i + PlayerW * rateW, MapCenterX - 2 * MapMoveMargin + PlayerH * rateH, NULL);
-		LineTo(hdc, MapCenterX + MapMoveMargin * i + PlayerW * rateW, MapCenterX + 2 * MapMoveMargin + PlayerH * rateH);
-		MoveToEx(hdc, MapCenterX - 2 * MapMoveMargin + PlayerW * rateW, MapCenterX + MapMoveMargin * i + PlayerH * rateH, NULL);
-		LineTo(hdc, MapCenterX + 2 * MapMoveMargin + PlayerW * rateW, MapCenterX + MapMoveMargin * i + PlayerH * rateH);
+	constexpr float rateH = 0.4f;
+	float offsetX = PlayerW * rateW;
+	float offsetY = PlayerH * rateH;
+	for (int i = 0; i <= 5; ++i) { 
+		float lineOffset = (i - (5.0f / 2.0f)) * MapMoveMargin;
+		MoveToEx(hdc, MapCenterX + lineOffset + offsetX, MapCenterY - (5.0f / 2.0f) * MapMoveMargin + offsetY, NULL);
+		LineTo(hdc, MapCenterX + lineOffset + offsetX, MapCenterY + (5.0f / 2.0f) * MapMoveMargin + offsetY);
+		MoveToEx(hdc, MapCenterX - (5.0f / 2.0f) * MapMoveMargin + offsetX, MapCenterY + lineOffset + offsetY, NULL);
+		LineTo(hdc, MapCenterX + (5.0f / 2.0f) * MapMoveMargin + offsetX, MapCenterY + lineOffset + offsetY);
 	}
 
 	DrawHand(hdc, imgDC, state, assets);
@@ -2281,7 +2307,7 @@ void Renderer::DrawHUD(HDC hdc, const GameState& state) {
 		SelectObject(hdc, hOldFont);
 		DeleteObject(hFont);
 
-		if (!state.boss.death) {
+		if (!state.boss.death && state.PvEMode) {
 			HPBar(hdc, state.boss.x + 75, state.boss.y - 30, state.boss.hp);
 
 			hFont = CreateFont(40, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Arial");
