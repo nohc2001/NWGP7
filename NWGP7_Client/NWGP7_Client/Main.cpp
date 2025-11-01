@@ -13,12 +13,6 @@ LPCTSTR lpszWindowName = L"windows program";
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam);
 
-struct Stage {
-	int x = 0;
-	int y = 0;
-	bool clear = false;
-};
-
 struct Card {
 	int id = 0; // 카드 종류
 	int x;
@@ -141,25 +135,13 @@ public:
 	bool start = false; // 시작 버튼 활성화
 	bool GameClear = false;
 
-	// 맵/스테이지 상태
-	Stage stages[9];
-	Stage ppp1[13], ppp2[13], ppp3[13], ppp4[13], ppp5[13], ppp6[13];
-	Stage ppp7[13], ppp8[13], ppp9[13], ppp10[13], ppp11[13], ppp12[13];
-	int mapPlayerX = 600, mapPlayerY = 700; // xx, yy
-	int nowstage = 0;
-	int movenum = 0;
-	bool move1 = false, move2 = false, move3 = false, move4 = false, move5 = false, move6 = false;
-	bool move7 = false, move8 = false, move9 = false, move10 = false, move11 = false, move12 = false;
-
 	// 스테이지별 플래그
-	bool stage1 = false, stage2_1 = false, stage2_2 = false;
-	bool stage3_1 = false, stage3mode = false, stage3_2 = false, stage3_3 = false, stage3attack = false;
-	bool stage4_1 = false, stage4_2 = false, stage4attack = false;
-	bool bossstage = false, bosspowerup = false;
-	int stack333 = 0, stack44 = 0;
-	bool nodamage = false;
+	bool boss = false, bossPhase2 = false;
+	int bossId = 0; // 보스 종류
+	int boss_6_statck = 0;
+	bool nodamage = false; // 보스 무적 패턴
 
-	// 전투 상태 (real data)
+	// 전투 상태
 	Player player;
 	Enermy enemy; // enermyy
 	bool isPlayerTurn = true; // turn
@@ -610,8 +592,8 @@ public:
 	void HandleLButtonUp(GameState& state, int x, int y);
 
 private:
-	void UpdateBattle(GameState& state);
-	void UpdateMap(GameState& state);
+	void UpdatePvE(GameState& state);
+	void UpdatePvP(GameState& state);
 
 	void CheckWinLossConditions(GameState& state);
 	void UpdatePlayerTurn(GameState& state);
@@ -628,23 +610,19 @@ private:
 
 class Renderer {
 public:
-	// WM_PAINT에서 이 함수 하나만 호출
 	void Render(HDC hdc, RECT rt, const GameState& state, const AssetManager& assets);
 
 private:
-	// Render 함수가 너무 커지지 않게 분리
 	void DrawBackground(HDC hdc, HDC imgDC, const GameState& state, const AssetManager& assets);
 	void DrawStartScreenUI(HDC hdc, HDC imgDC, const GameState& state, const AssetManager& assets);
 	void DrawPvPScreen(HDC hdc, HDC imgDC, const GameState& state, const AssetManager& assets);
 	void DrawPVEScreen(HDC hdc, HDC imgDC, const GameState& state, const AssetManager& assets);
 	void DrawHUD(HDC hdc, const GameState& state); // 텍스트, HP바
 
-	// 세부 그리기 함수
 	void DrawHand(HDC hdc, HDC imgDC, const GameState& state, const AssetManager& assets);
 	void DrawCharacters(HDC hdc, HDC imgDC, const GameState& state, const AssetManager& assets);
 	void DrawEffects(HDC hdc, HDC imgDC, const GameState& state, const AssetManager& assets);
 
-	// 전역 함수였던 것들
 	void HPBar(HDC hDC, int x, int y, int hp);
 	void ClearCross(HDC hDC, int x, int y, int r);
 };
@@ -728,14 +706,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		break;
 
 	case WM_TIMER:
-		g_Game.OnTimer(); // 로직 업데이트 위임
-		// InvalidateRect는 Game::OnTimer 내부에서 호출
+		g_Game.OnTimer();
 		break;
 
 	case WM_PAINT: // 모든 그리기는 여기서
 		GetClientRect(hWnd, &rt);
 		hDC = BeginPaint(hWnd, &ps);
-		g_Game.OnPaint(hDC, ps, rt); // 그리기 위임
+		g_Game.OnPaint(hDC, ps, rt); 
 		EndPaint(hWnd, &ps);
 		break;
 
@@ -876,91 +853,6 @@ void GameLogic::Initialize(GameState& state)
 	srand((unsigned int)time(NULL));
 	state.StartScreen = true;
 
-	//------------------------- 스테이지 1
-	state.stages[0].x = 600;
-	state.stages[0].y = 700;
-
-	for (int i = 0; i < 13; ++i) {
-		state.ppp1[i].x = 600 - (10 * (i + 1));
-		state.ppp1[i].y = 700 - (10 * (i + 1));
-	}
-
-	for (int i = 0; i < 13; ++i) {
-		state.ppp2[i].x = 600 + (10 * (i + 1));
-		state.ppp2[i].y = 700 - (10 * (i + 1));
-	}
-
-	//------------------------ 스테이지 2
-	state.stages[1].x = 450;
-	state.stages[1].y = 550;
-
-	for (int i = 0; i < 13; ++i) {
-		state.ppp3[i].x = 450 - (10 * (i + 1));
-		state.ppp3[i].y = 550 - (10 * (i + 1));
-	}
-
-	for (int i = 0; i < 13; ++i) {
-		state.ppp4[i].x = 450 + (10 * (i + 1));
-		state.ppp4[i].y = 550 - (10 * (i + 1));
-	}
-
-	state.stages[2].x = 750;
-	state.stages[2].y = 550;
-
-	for (int i = 0; i < 13; ++i) {
-		state.ppp5[i].x = 750 - (10 * (i + 1));
-		state.ppp5[i].y = 550 - (10 * (i + 1));
-	}
-
-	for (int i = 0; i < 13; ++i) {
-		state.ppp6[i].x = 750 + (10 * (i + 1));
-		state.ppp6[i].y = 550 - (10 * (i + 1));
-	}
-	//----------------------- 스테이지 3
-	state.stages[3].x = 300;
-	state.stages[3].y = 400;
-
-	for (int i = 0; i < 13; ++i) {
-		state.ppp7[i].x = 300 + (10 * (i + 1));
-		state.ppp7[i].y = 400 - (10 * (i + 1));
-	}
-	state.stages[4].x = 600;
-	state.stages[4].y = 400;
-	for (int i = 0; i < 13; ++i) {
-		state.ppp8[i].x = 600 - (10 * (i + 1));
-		state.ppp8[i].y = 400 - (10 * (i + 1));
-	}
-
-	for (int i = 0; i < 13; ++i) {
-		state.ppp9[i].x = 600 + (10 * (i + 1));
-		state.ppp9[i].y = 400 - (10 * (i + 1));
-	}
-	state.stages[5].x = 900;
-	state.stages[5].y = 400;
-	for (int i = 0; i < 13; ++i) {
-		state.ppp10[i].x = 900 - (10 * (i + 1));
-		state.ppp10[i].y = 400 - (10 * (i + 1));
-	}
-
-	//----------------------- 스테이지 4
-	state.stages[6].x = 450;
-	state.stages[6].y = 250;
-
-	for (int i = 0; i < 13; ++i) {
-		state.ppp11[i].x = 450 + (10 * (i + 1));
-		state.ppp11[i].y = 250 - (10 * (i + 1));
-	}
-	state.stages[7].x = 750;
-	state.stages[7].y = 250;
-	for (int i = 0; i < 13; ++i) {
-		state.ppp12[i].x = 750 - (10 * (i + 1));
-		state.ppp12[i].y = 250 - (10 * (i + 1));
-	}
-
-	//----------------------- 보스 스테이지
-	state.stages[8].x = 600;
-	state.stages[8].y = 100;
-
 	// 카드 위치/ID 초기화
 	state.player.hand[0].x = 300;
 	state.player.hand[0].y = 900;
@@ -981,8 +873,7 @@ void GameLogic::Initialize(GameState& state)
 	state.player.x = 225;
 	state.player.y = 250;
 	state.player.defence = 0;
-	state.mapPlayerX = state.stages[0].x;
-	state.mapPlayerY = state.stages[0].y;
+
 }
 
 void GameLogic::Update(GameState& state)
@@ -992,10 +883,10 @@ void GameLogic::Update(GameState& state)
 	}
 	else {
 		if (state.MAIN) {
-			UpdateBattle(state); // 전투
+			UpdatePvE(state); // 전투
 		}
 		else {
-			UpdateMap(state); // 맵 이동
+			UpdatePvP(state); // 맵 이동
 		}
 	}
 }
@@ -1166,7 +1057,7 @@ void GameLogic::HandleLButtonUp(GameState& state, int x, int y)
 	}
 }
 
-void GameLogic::UpdateBattle(GameState& state)
+void GameLogic::UpdatePvE(GameState& state)
 {
 	CheckWinLossConditions(state);
 	if (state.isPlayerTurn) UpdatePlayerTurn(state);
@@ -1174,209 +1065,26 @@ void GameLogic::UpdateBattle(GameState& state)
 	UpdateBuffsAndTimers(state);
 }
 
-void GameLogic::UpdateMap(GameState& state)
+void GameLogic::UpdatePvP(GameState& state)
 {
-	if (state.nowstage == 0) lstrcpy(state.nowstagestr, L"STAGE 1");
-	else if (state.nowstage == 1) lstrcpy(state.nowstagestr, L"STAGE 2-1");
-	else if (state.nowstage == 2) lstrcpy(state.nowstagestr, L"STAGE 2-2");
-	else if (state.nowstage == 3) lstrcpy(state.nowstagestr, L"STAGE 3-1");
-	else if (state.nowstage == 4) lstrcpy(state.nowstagestr, L"STAGE 3-2");
-	else if (state.nowstage == 5) lstrcpy(state.nowstagestr, L"STAGE 3-3");
-	else if (state.nowstage == 6) lstrcpy(state.nowstagestr, L"STAGE 4-1");
-	else if (state.nowstage == 7) lstrcpy(state.nowstagestr, L"STAGE 4-2");
-	else if (state.nowstage == 8) lstrcpy(state.nowstagestr, L"Boss !!");
-
-	if (state.move1) {
-		state.mapPlayerX = state.ppp1[state.movenum].x;
-		state.mapPlayerY = state.ppp1[state.movenum].y;
-		if (state.movenum < 13) {
-			state.movenum++;
-		}
-		if (state.movenum == 13) {
-			state.movenum = 0; 
-			state.move1 = false;
-			state.mapPlayerX = state.stages[1].x; 
-			state.mapPlayerY = state.stages[1].y;
-			state.nowstage = 1;
-		}
-	}
-	if (state.move2) { // 스테이지 1 --> 스테이지 2-2
-		state.mapPlayerX = state.ppp2[state.movenum].x;
-		state.mapPlayerY = state.ppp2[state.movenum].y;
-		if (state.movenum < 13) {
-			state.movenum++;
-		}
-		if (state.movenum == 13) {
-			state.movenum = 0;
-			state.move2 = false;
-			state.mapPlayerX = state.stages[2].x;
-			state.mapPlayerY = state.stages[2].y;
-			state.nowstage = 2;
-		}
-	}
-	if (state.move3) { // 스테이지 2-1 --> 스테이지 3-1
-		state.mapPlayerX = state.ppp3[state.movenum].x;
-		state.mapPlayerY = state.ppp3[state.movenum].y;
-		if (state.movenum < 13) {
-			state.movenum++;
-		}
-		if (state.movenum == 13) {
-			state.movenum = 0;
-			state.move3 = false;
-			state.mapPlayerX = state.stages[3].x;
-			state.mapPlayerY = state.stages[3].y;
-			state.nowstage = 3;
-		}
-	}
-	if (state.move4) { // 스테이지 2-1 --> 스테이지 3-2
-		state.mapPlayerX = state.ppp4[state.movenum].x;
-		state.mapPlayerY = state.ppp4[state.movenum].y;
-		if (state.movenum < 13) {
-			state.movenum++;
-		}
-		if (state.movenum == 13) {
-			state.movenum = 0;
-			state.move4 = false;
-			state.mapPlayerX = state.stages[4].x;
-			state.mapPlayerY = state.stages[4].y;
-			state.nowstage = 4;
-		}
-	}
-	if (state.move5) { // 스테이지 2-2 --> 스테이지 3-2
-		state.mapPlayerX = state.ppp5[state.movenum].x;
-		state.mapPlayerY = state.ppp5[state.movenum].y;
-		if (state.movenum < 13) {
-			state.movenum++;
-		}
-		if (state.movenum == 13) {
-			state.movenum = 0;
-			state.move5 = false;
-			state.mapPlayerX = state.stages[4].x;
-			state.mapPlayerY = state.stages[4].y;
-			state.nowstage = 4;
-		}
-	}
-	if (state.move6) { // 스테이지 2-2 --> 스테이지 3-3
-		state.mapPlayerX = state.ppp6[state.movenum].x;
-		state.mapPlayerY = state.ppp6[state.movenum].y;
-		if (state.movenum < 13) {
-			state.movenum++;
-		}
-		if (state.movenum == 13) {
-			state.movenum = 0;
-			state.move6 = false;
-			state.mapPlayerX = state.stages[5].x;
-			state.mapPlayerY = state.stages[5].y;
-			state.nowstage = 5;
-		}
-	}
-	if (state.move7) { // 스테이지 3-1 --> 스테이지 4-1
-		state.mapPlayerX = state.ppp7[state.movenum].x;
-		state.mapPlayerY = state.ppp7[state.movenum].y;
-		if (state.movenum < 13) {
-			state.movenum++;
-		}
-		if (state.movenum == 13) {
-			state.movenum = 0;
-			state.move7 = false;
-			state.mapPlayerX = state.stages[6].x;
-			state.mapPlayerY = state.stages[6].y;
-			state.nowstage = 6;
-		}
-	}
-	if (state.move8) { // 스테이지 3-2 --> 스테이지 4-1
-		state.mapPlayerX = state.ppp8[state.movenum].x;
-		state.mapPlayerY = state.ppp8[state.movenum].y;
-		if (state.movenum < 13) {
-			state.movenum++;
-		}
-		if (state.movenum == 13) {
-			state.movenum = 0;
-			state.move8 = false;
-			state.mapPlayerX = state.stages[6].x;
-			state.mapPlayerY = state.stages[6].y;
-			state.nowstage = 6;
-		}
-	}
-	if (state.move9) { // 스테이지 3-2 --> 스테이지 4-2
-		state.mapPlayerX = state.ppp9[state.movenum].x;
-		state.mapPlayerY = state.ppp9[state.movenum].y;
-		if (state.movenum < 13) {
-			state.movenum++;
-		}
-		if (state.movenum == 13) {
-			state.movenum = 0;
-			state.move9 = false;
-			state.mapPlayerX = state.stages[7].x;
-			state.mapPlayerY = state.stages[7].y;
-			state.nowstage = 7;
-		}
-	}
-	if (state.move10) { // 스테이지 3-3 --> 스테이지 4-2
-		state.mapPlayerX = state.ppp10[state.movenum].x;
-		state.mapPlayerY = state.ppp10[state.movenum].y;
-		if (state.movenum < 13) {
-			state.movenum++;
-		}
-		if (state.movenum == 13) {
-			state.movenum = 0;
-			state.move10 = false;
-			state.mapPlayerX = state.stages[7].x;
-			state.mapPlayerY = state.stages[7].y;
-			state.nowstage = 7;
-		}
-	}
-	if (state.move11) { // 스테이지 4-1 --> boss 스테이지
-		state.mapPlayerX = state.ppp11[state.movenum].x;
-		state.mapPlayerY = state.ppp11[state.movenum].y;
-		if (state.movenum < 13) {
-			state.movenum++;
-		}
-		if (state.movenum == 13) {
-			state.movenum = 0;
-			state.move11 = false;
-			state.mapPlayerX = state.stages[8].x;
-			state.mapPlayerY = state.stages[8].y;
-			state.nowstage = 8;
-		}
-	}
-	if (state.move12) {
-		state.mapPlayerX = state.ppp12[state.movenum].x;
-		state.mapPlayerY = state.ppp12[state.movenum].y;
-		if (state.movenum < 13) {
-			state.movenum++;
-		}
-		if (state.movenum == 13) {
-			state.movenum = 0; 
-			state.move12 = false;
-			state.mapPlayerX = state.stages[8].x; 
-			state.mapPlayerY = state.stages[8].y;
-			state.nowstage = 8;
-		}
-	}
+	UpdateBuffsAndTimers(state);
 }
 
 void GameLogic::CheckWinLossConditions(GameState& state)
 {
-	if (state.enemy.hp <= 0 && !state.stage4_1 && !state.bossstage) {
+	if (state.enemy.hp <= 0 && !state.boss) {
 		state.boomswitch = true;
 	}
-	if (state.bossstage && state.enemy.hp <= 0) { // boss 스테이지
-		if (state.bosspowerup) {
+	if (state.boss && state.enemy.hp <= 0) { // boss 스테이지
+		if (state.bossPhase2) {
 			state.boomswitch = true;
 		}
 		else {
 			state.enemy.heal = true;
 			state.enemy.healEnergy = 100;
-			state.bosspowerup = true;
+			state.bossPhase2 = true;
 			state.enemy.defence = 20;
 		}
-	}
-	if (state.stage4_1 && state.enemy.hp <= 0) { // 4-1 보스 기믹
-		if (state.stack44 == 0) { state.stack44 = 1; state.enemy.heal = true; state.enemy.healEnergy = 50; }
-		else if (state.stack44 == 1) { state.stack44 = 2; state.enemy.heal = true; state.enemy.healEnergy = 30; }
-		else if (state.stack44 == 2) { state.stack44 = 3; state.enemy.heal = true; state.enemy.healEnergy = 20; }
-		else state.boomswitch = true;
 	}
 	if (state.player.hp <= 0) {
 		state.player.playerdeath = true;
@@ -1468,105 +1176,17 @@ void GameLogic::UpdateEnemyTurn(GameState& state)
 
 void GameLogic::ExecuteEnemyAI(GameState& state)
 {
-	
-		// 스테이지 1 슬라임 패턴
-		if (state.stage1) { // 데미지 0~5
-			ApplyDamageToPlayer(state, rand() % 5);
+	// 보스 로직
+	if (state.boss) { // 노 각성 공 20 방 20 / 각성 공 30 방 30
+		if (state.bossPhase2) {
+			ApplyDamageToPlayer(state, 30);
+			ApplyDefenseToEnemy(state, 30);
 		}
-		// 스테이지 2-1 기사 50% 공격 50% 방어
-		else if (state.stage2_1) { // 데미지 10 / 방어 10
-			state.patturn = rand() % 2;
-			if (state.patturn == 0) {
-				ApplyDamageToPlayer(state, 10);
-			}
-			else {
-				ApplyDefenseToEnemy(state, 10);
-			}
-		}
-		// 스테이지 2-2 주술사 50% 공격 50% 자힐
-		else if (state.stage2_2) { // 데미지 10 / 힐 10
-			state.patturn = rand() % 2;
-			if (state.patturn == 0) {
-				state.enemy.heal = true;
-				state.enemy.healEnergy = 10;
-			}
-			else {
-				ApplyDamageToPlayer(state, 10);
-			}
-		}
-		// 스테이지 3-1 거북
-		else if (state.stage3_1) {
-			if (state.stage3mode) { // 빨간 모드
-				ApplyDamageToPlayer(state, 60);
-			}
-			else { // 노멀 모드
-				state.stack333++;
-				if (state.stack333 == 5) {
-					state.stage3mode = true;
-				}
-				ApplyDefenseToEnemy(state, 20);
-			}
-		}
-		// 스테이지 3-2 개
-		else if (state.stage3_2) { // 데미지 20 / 방어 20
+		else {
 			ApplyDamageToPlayer(state, 20);
 			ApplyDefenseToEnemy(state, 20);
 		}
-		// 스테이지 3-3 두더지
-		else if (state.stage3_3) {
-			if (state.stage3mode) { // 땅 팜
-				state.stack333++;
-				if (state.stack333 == 5) {
-					state.stack333 = 0;
-					state.stage3attack = true; // 공격 애니메이션
-					ApplyDamageToPlayer(state, 30);
-				}
-			}
-			else { // 지상
-				state.stack333++;
-				if (state.stack333 == 3) {
-					state.stage3mode = true;
-					state.dontattackcard = true; // 공격 카드 사용 금지
-				}
-				ApplyDamageToPlayer(state, 10);
-				ApplyDefenseToEnemy(state, 10);
-			}
-		}
-		// 스테이지 4-1 마트료시카
-		else if (state.stage4_1) { // 공격20 방어 20
-			ApplyDamageToPlayer(state, 20);
-			ApplyDefenseToEnemy(state, 20);
-		}
-		// 스테이지 4-2 관
-		else if (state.stage4_2) { // 공격 20 방 20 3턴마다 무적 다음턴 30뎀
-			state.stack44++;
-			if (state.stack44 == 3) {
-				state.stage4attack = true;
-				state.nodamage = true; // 무적
-			}
-			else if (state.stack44 == 4) {
-				state.stack44 = 0;
-				state.nodamage = false; // 무적 해제
-				ApplyDamageToPlayer(state, 30);
-				state.stage4attack = false;
-			}
-			else {
-				ApplyDamageToPlayer(state, 20);
-				ApplyDefenseToEnemy(state, 20);
-			}
-		}
-		// 보스 스테이지
-		else if (state.bossstage) { // 노 각성 공 20 방 20 / 각성 공 30 방 30
-			if (state.bosspowerup) {
-				ApplyDamageToPlayer(state, 30);
-				ApplyDefenseToEnemy(state, 30);
-			}
-			else {
-				ApplyDamageToPlayer(state, 20);
-				ApplyDefenseToEnemy(state, 20);
-			}
-		}
-	
+	}
 }
 
 void GameLogic::UpdateBuffsAndTimers(GameState& state)
@@ -1690,7 +1310,7 @@ void GameLogic::UpdateBuffsAndTimers(GameState& state)
 	}
 
 	if (state.enemy.heal) { // 적 hp바 회복 모션
-		if (state.bossstage) {
+		if (state.boss) {
 			state.enemy.healTime += 20;
 			if (state.enemy.hp < 100) { 
 				state.enemy.hp += 20;
@@ -1725,9 +1345,7 @@ void GameLogic::UpdateBuffsAndTimers(GameState& state)
 			state.endendtime = 0;
 			state.endend = false;
 			state.StartScreen = true;
-			if (state.stages[8].clear) {
-				state.GameClear = true;
-			}
+			state.GameClear = true; // 게임 클
 		}
 	}
 
@@ -1736,16 +1354,10 @@ void GameLogic::UpdateBuffsAndTimers(GameState& state)
 		if (state.pdeathtime >= 15) {
 			state.pdeathtime = 0;
 			state.pdeath = false; 
-			for (int i = 0; i < 9; ++i) {
-				state.stages[i].clear = false;
-			}
 			state.player.hp = 100;
 			state.player.playerdeath = false;
 			state.StartScreen = true;
-			state.nowstage = 0;
 			lstrcpy(state.nowstagestr, L"STGAE 1");
-			state.mapPlayerX = state.stages[0].x; 
-			state.mapPlayerY = state.stages[0].y;
 		}
 	}
 
@@ -1812,16 +1424,6 @@ void GameLogic::UpdateBuffsAndTimers(GameState& state)
 		}
 	}
 
-	if (state.stage3attack) {
-		state.enemy.animCount++;
-		if (state.enemy.animCount >= 9) { 
-			state.stage3attack = false;
-			state.dontattackcard = false;
-			state.stage3mode = false;
-			state.enemy.animCount = 0;
-		}
-	}
-
 	if (state.boomswitch) {
 		state.boomcount++;
 		if (state.boomcount >= 8) {
@@ -1829,16 +1431,6 @@ void GameLogic::UpdateBuffsAndTimers(GameState& state)
 			state.boomcount = 0;
 			// *** 스테이지 클리어 처리 ***
 			state.endend = true; // 클리어 자막 시작
-			// (현재 스테이지 클리어 플래그 설정)
-			if (state.mapPlayerX == state.stages[0].x && state.mapPlayerY == state.stages[0].y) state.stages[0].clear = true;
-			else if (state.mapPlayerX == state.stages[1].x && state.mapPlayerY == state.stages[1].y) state.stages[1].clear = true;
-			else if (state.mapPlayerX == state.stages[2].x && state.mapPlayerY == state.stages[2].y) state.stages[2].clear = true;
-			else if (state.mapPlayerX == state.stages[3].x && state.mapPlayerY == state.stages[3].y) state.stages[3].clear = true;
-			else if (state.mapPlayerX == state.stages[4].x && state.mapPlayerY == state.stages[4].y) state.stages[4].clear = true;
-			else if (state.mapPlayerX == state.stages[5].x && state.mapPlayerY == state.stages[5].y) state.stages[5].clear = true;
-			else if (state.mapPlayerX == state.stages[6].x && state.mapPlayerY == state.stages[6].y) state.stages[6].clear = true;
-			else if (state.mapPlayerX == state.stages[7].x && state.mapPlayerY == state.stages[7].y) state.stages[7].clear = true;
-			else if (state.mapPlayerX == state.stages[8].x && state.mapPlayerY == state.stages[8].y) state.stages[8].clear = true;
 		}
 	}
 	if (state.Sniper) {
@@ -1872,104 +1464,42 @@ void GameLogic::UpdateBuffsAndTimers(GameState& state)
 
 void GameLogic::StartBattle(GameState& state)
 {
-	//state.MAIN = true;  //레이드랑 pvp로 분리
-	state.startstart = true; 
-	state.droww = true;     
-	state.enemy.death = false;
-	state.startstarttime = 0;
-	state.player.mana = state.player.maxMana; 
-	state.boomswitch = false;
-	state.boomcount = 0;
-	state.isPlayerTurn = true;
-	state.enemy.attackTime = 0; 
+	if (state.MAIN) { // 레이드
+		state.startstart = true;
+		state.droww = true;
+		state.enemy.death = false;
+		state.startstarttime = 0;
+		state.player.mana = state.player.maxMana;
+		state.boomswitch = false;
+		state.boomcount = 0;
+		state.isPlayerTurn = true;
+		state.enemy.attackTime = 0;
 
-	for (int i = 0; i < 5; ++i) {
-		state.player.hand[i].id = rand() % 15;
-		state.player.hand[i].x = 300 + 150 * i; 
-		state.player.hand[i].y = 900;           
-	}
+		for (int i = 0; i < 5; ++i) {
+			state.player.hand[i].id = rand() % 15;
+			state.player.hand[i].x = 300 + 150 * i;
+			state.player.hand[i].y = 900;
+		}
 
-	state.stage1 = false;
-	state.stage2_1 = false;
-	state.stage2_2 = false;
-	state.stage3_1 = false;
-	state.stage3_2 = false;
-	state.stage3_3 = false;
-	state.stage4_1 = false;
-	state.stage4_2 = false;
-	state.bossstage = false;
+		state.boss = true; // boss 활성화
+		state.bossId = rand() % 9;
+	}
+	else { // PvP
+		state.startstart = true;
+		state.droww = true;
+		state.enemy.death = false;
+		state.startstarttime = 0;
+		state.player.mana = state.player.maxMana;
+		state.boomswitch = false;
+		state.boomcount = 0;
+		state.isPlayerTurn = true;
+		state.enemy.attackTime = 0;
 
-	if (state.mapPlayerX == state.stages[0].x && state.mapPlayerY == state.stages[0].y) {
-		state.stage1 = true;
-		state.enemy.hp = 100;
-		state.enemy.defence = 0;
-		state.enemy.x = 825;
-		state.enemy.y = 350;
-	}
-	else if (state.mapPlayerX == state.stages[1].x && state.mapPlayerY == state.stages[1].y) {
-		state.stage2_1 = true;
-		state.enemy.hp = 100;
-		state.enemy.defence = 15;
-		state.enemy.x = 825;
-		state.enemy.y = 250;
-	}
-	else if (state.mapPlayerX == state.stages[2].x && state.mapPlayerY == state.stages[2].y) {
-		state.stage2_2 = true;
-		state.enemy.hp = 100;
-		state.enemy.defence = 15;
-		state.enemy.x = 825;
-		state.enemy.y = 250;
-	}
-	else if (state.mapPlayerX == state.stages[3].x && state.mapPlayerY == state.stages[3].y) {
-		state.stage3_1 = true;
-		state.enemy.hp = 100;
-		state.enemy.defence = 20;
-		state.stage3mode = false;
-		state.stack333 = 0;    
-		state.enemy.x = 755;
-		state.enemy.y = 180;
-	}
-	else if (state.mapPlayerX == state.stages[4].x && state.mapPlayerY == state.stages[4].y) {
-		state.stage3_2 = true;
-		state.enemy.hp = 100;
-		state.enemy.defence = 30;
-		state.enemy.x = 820;
-		state.enemy.y = 200;
-	}
-	else if (state.mapPlayerX == state.stages[5].x && state.mapPlayerY == state.stages[5].y) {
-		state.stage3_3 = true;
-		state.enemy.hp = 100;
-		state.enemy.defence = 20;
-		state.stage3mode = false; 
-		state.stack333 = 0;    
-		state.enemy.x = 825;
-		state.enemy.y = 250;
-	}
-	else if (state.mapPlayerX == state.stages[6].x && state.mapPlayerY == state.stages[6].y) {
-		state.stage4_1 = true;
-		state.enemy.hp = 100;
-		state.enemy.defence = 20;
-		state.stack44 = 0; 
-		state.enemy.x = 755;
-		state.enemy.y = 180;
-	}
-	else if (state.mapPlayerX == state.stages[7].x && state.mapPlayerY == state.stages[7].y) {
-		state.stage4_2 = true;
-		state.enemy.hp = 100;
-		state.enemy.defence = 20;
-		state.nodamage = false;     
-		state.stage4attack = false;
-		state.stack44 = 0;        
-		state.enemy.x = 755;
-		state.enemy.y = 180;
-	}
-	else if (state.mapPlayerX == state.stages[8].x && state.mapPlayerY == state.stages[8].y) {
-		state.bossstage = true;
-		state.enemy.hp = 100;
-		state.enemy.defence = 20;
-		state.bosspowerup = false; 
-		state.enemy.x = 755;
-		state.enemy.y = 220;
+		for (int i = 0; i < 5; ++i) {
+			state.player.hand[i].id = rand() % 15;
+			state.player.hand[i].x = 300 + 150 * i;
+			state.player.hand[i].y = 900;
+		}
 	}
 }
 
@@ -2711,20 +2241,20 @@ void Renderer::DrawCharacters(HDC hdc, HDC imgDC, const GameState& state, const 
 
 	// 적
 	if (!state.enemy.death) {
-		if (state.stage1) {
+		if (state.bossId == 0) { // 슬라임 보스
 			SelectObject(imgDC, assets.Enermy1[state.enemy.animCount % 3]);
 			TransparentBlt(hdc, state.enemy.x, state.enemy.y, 150, 100, imgDC, 0, 0, assets.enermy1Width, assets.enermy1Height, RGB(100, 100, 100));
 		}
-		else if (state.stage2_1) {
+		else if (state.bossId == 1) { // 기사 보스
 			SelectObject(imgDC, assets.Enermy2[state.enemy.animCount % 3]);
 			TransparentBlt(hdc, state.enemy.x, state.enemy.y, 150, 200, imgDC, 0, 0, assets.enermy2Width, assets.enermy2Height, RGB(100, 100, 100));
 		}
-		else if (state.stage2_2) {
+		else if (state.bossId == 2) { // 마녀 보스
 			SelectObject(imgDC, assets.Enermy3[state.enemy.animCount % 3]);
 			TransparentBlt(hdc, state.enemy.x, state.enemy.y, 150, 200, imgDC, 0, 0, assets.enermy3Width, assets.enermy3Height, RGB(100, 100, 100));
 		}
-		else if (state.stage3_1) {
-			if (state.stage3mode) {
+		else if (state.bossId == 3) { // 
+			if (state.bossPhase2) {
 				SelectObject(imgDC, assets.Enermy5[state.enemy.animCount % 3]);
 			}
 			else {
@@ -2732,13 +2262,13 @@ void Renderer::DrawCharacters(HDC hdc, HDC imgDC, const GameState& state, const 
 			}
 			TransparentBlt(hdc, state.enemy.x, state.enemy.y, 250, 300, imgDC, 0, 0, assets.enermy4Width, assets.enermy4Height, RGB(100, 100, 100));
 		}
-		else if (state.stage3_2) {
+		else if (state.bossId == 4) {
 			SelectObject(imgDC, assets.Enermy6[state.enemy.animCount % 3]);
 			TransparentBlt(hdc, state.enemy.x, state.enemy.y, 200, 250, imgDC, 0, 0, assets.enermy5Width, assets.enermy5Height, RGB(100, 100, 100));
 		}
-		else if (state.stage3_3) { // 두더지
-			if (state.stage3mode) {
-				if (state.stage3attack) { // 공격 모션 
+		else if (state.bossId == 5) { // 두더지
+			if (state.nodamage) {
+				if (state.bossPhase2) { // 공격 모션 
 					int frameIndex = state.enemy.animCount / 3; // 0,0,0, 1,1,1, 2,2,2
 					if (frameIndex > 2) frameIndex = 2;
 					SelectObject(imgDC, assets.Enermy9[frameIndex]);
@@ -2752,15 +2282,15 @@ void Renderer::DrawCharacters(HDC hdc, HDC imgDC, const GameState& state, const 
 			}
 			TransparentBlt(hdc, state.enemy.x, state.enemy.y, 400, 250, imgDC, 0, 0, assets.enermy6Width, assets.enermy6Height, RGB(255, 255, 255));
 		}
-		else if (state.stage4_1) { // 마트료시카
-			if (state.stack44 == 0) SelectObject(imgDC, assets.Enermy10[state.enemy.animCount % 3]);
-			else if (state.stack44 == 1) SelectObject(imgDC, assets.Enermy11[state.enemy.animCount % 3]);
-			else if (state.stack44 == 2) SelectObject(imgDC, assets.Enermy12[state.enemy.animCount % 3]);
+		else if (state.bossId == 6) { // 마트료시카
+			if (state.boss_6_statck == 0) SelectObject(imgDC, assets.Enermy10[state.enemy.animCount % 3]);
+			else if (state.boss_6_statck == 1) SelectObject(imgDC, assets.Enermy11[state.enemy.animCount % 3]);
+			else if (state.boss_6_statck == 2) SelectObject(imgDC, assets.Enermy12[state.enemy.animCount % 3]);
 			else SelectObject(imgDC, assets.Enermy13[state.enemy.animCount % 3]);
 			TransparentBlt(hdc, state.enemy.x, state.enemy.y, 250, 300, imgDC, 0, 0, assets.enermy7Width, assets.enermy7Height, RGB(255, 255, 255));
 		}
-		else if (state.stage4_2) { // 관
-			if (state.stage4attack) {
+		else if (state.bossId == 7) { // 관
+			if (state.bossPhase2) {
 				SelectObject(imgDC, assets.Enermy15[state.enemy.animCount % 3]);
 			}
 			else {
@@ -2768,8 +2298,8 @@ void Renderer::DrawCharacters(HDC hdc, HDC imgDC, const GameState& state, const 
 			}
 			TransparentBlt(hdc, state.enemy.x, state.enemy.y, 250, 300, imgDC, 0, 0, assets.enermy8Width, assets.enermy8Height, RGB(255, 255, 255));
 		}
-		else if (state.bossstage) {
-			if (state.bosspowerup) {
+		else if (state.bossId == 8) {
+			if (state.bossPhase2) {
 				SelectObject(imgDC, assets.Enermy17[state.enemy.animCount % 6]);
 				TransparentBlt(hdc, state.enemy.x - 100, state.enemy.y - 50, 600, 400, imgDC, 0, 0, assets.enermy10Width, assets.enermy10Height, RGB(88, 88, 88));
 			}
