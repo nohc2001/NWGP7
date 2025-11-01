@@ -134,7 +134,7 @@ class GameState {
 public:
 	// 게임 화면 상태
 	bool StartScreen = true;
-	bool MAIN = false;
+	bool MAIN = false;  // true 일떄 레이드 false일때 pvp
 	bool descrtion = false;
 	bool end = false;
 	bool endon = false; // 턴 종료 버튼 활성화
@@ -635,8 +635,8 @@ private:
 	// Render 함수가 너무 커지지 않게 분리
 	void DrawBackground(HDC hdc, HDC imgDC, const GameState& state, const AssetManager& assets);
 	void DrawStartScreenUI(HDC hdc, HDC imgDC, const GameState& state, const AssetManager& assets);
-	void DrawMapScreen(HDC hdc, HDC imgDC, const GameState& state, const AssetManager& assets);
-	void DrawBattleScreen(HDC hdc, HDC imgDC, const GameState& state, const AssetManager& assets);
+	void DrawPvPScreen(HDC hdc, HDC imgDC, const GameState& state, const AssetManager& assets);
+	void DrawPVEScreen(HDC hdc, HDC imgDC, const GameState& state, const AssetManager& assets);
 	void DrawHUD(HDC hdc, const GameState& state); // 텍스트, HP바
 
 	// 세부 그리기 함수
@@ -1020,7 +1020,32 @@ void GameLogic::HandleMouseMove(GameState& state, int x, int y)
 		else state.end = false;
 	}
 	else {
-		if (state.MAIN) {
+		if (state.MAIN) { // 레이드 
+			bool isDragging = false;
+			for (int i = 0; i < 5; ++i) if (state.player.hand[i].drag) isDragging = true;
+
+			if (isDragging && state.isPlayerTurn) {
+				if (x >= 900 - 70 && x <= 900 + 70 && y >= 400 - 60 && y <= 400 + 60) state.enermytouch = true;
+				else state.enermytouch = false;
+			}
+			else state.enermytouch = false;
+
+			if (x >= 1050 && x <= 1120 && y >= 600 && y <= 655 && state.isPlayerTurn) state.endon = true;
+			else state.endon = false;
+
+			for (int i = 0; i < 5; ++i) {
+				if (x >= state.player.hand[i].x - 70 && x <= state.player.hand[i].x + 70 && y >= state.player.hand[i].y - 100 && y <= state.player.hand[i].y + 100 && state.isPlayerTurn) {
+					state.player.hand[i].select = true;
+				}
+				else state.player.hand[i].select = false;
+
+				if (state.player.hand[i].drag && state.isPlayerTurn) {
+					state.player.hand[i].x = x;
+					state.player.hand[i].y = y;
+				}
+			}
+		}
+		else { // pvp
 			bool isDragging = false;
 			for (int i = 0; i < 5; ++i) if (state.player.hand[i].drag) isDragging = true;
 
@@ -1051,19 +1076,27 @@ void GameLogic::HandleMouseMove(GameState& state, int x, int y)
 void GameLogic::HandleLButtonDown(GameState& state, int x, int y, HWND hWnd)
 {
 	if (state.StartScreen) {
-		if (x >= 900 && x <= 1150 && y >= 450 && y <= 500) state.StartScreen = false;
-		if (x >= 900 && x <= 1150 && y >= 530 && y <= 580) { /* 설명서 */ }
+		if (x >= 900 && x <= 1150 && y >= 450 && y <= 500) { // pvp
+			state.StartScreen = false;
+			state.MAIN = false;
+			StartBattle(state);
+		}
+		if (x >= 900 && x <= 1150 && y >= 530 && y <= 580) { // 레이드
+			state.StartScreen = false;
+			state.MAIN = true;
+			StartBattle(state);
+		}
 		if (x >= 900 && x <= 1150 && y >= 610 && y <= 660) PostQuitMessage(0);
 	}
 	else {
-		if (state.MAIN) {
+		if (state.MAIN) { // 레이드
 			if (x >= 175 && x <= 225 && y >= 15 && y <= 65) { //일시정지
 				state.tempstop = !state.tempstop;
 				if (state.tempstop) KillTimer(hWnd, 1);
 				else SetTimer(hWnd, 1, 100, NULL);
 			}
 			if (x >= 1050 && x <= 1120 && y >= 600 && y <= 655 && state.isPlayerTurn) 
-				state.player.mana = 0; // 턴 종료
+				state.player.mana = 0; // 턴 종료 버튼
 
 			for (int i = 0; i < 5; ++i) {
 				if (state.player.hand[i].on && x >= state.player.hand[i].x - 70 && x <= state.player.hand[i].x + 70 && y >= state.player.hand[i].y - 100 && y <= state.player.hand[i].y + 100 && state.isPlayerTurn && !state.player.onepunching) {
@@ -1071,59 +1104,27 @@ void GameLogic::HandleLButtonDown(GameState& state, int x, int y, HWND hWnd)
 				}
 				else state.player.hand[i].drag = false;
 			}
-			if (x >= 10 && x <= 70 && y >= 10 && y <= 70) 
-				state.MAIN = false; // 맵으로
+			if (x >= 10 && x <= 70 && y >= 10 && y <= 70) {
+				state.StartScreen = true;
+			}
 		}
-		else { // 맵 화면
-			if (state.stages[0].clear && state.mapPlayerX == state.stages[0].x && state.mapPlayerY == state.stages[0].y && x >= state.stages[1].x - 25 && x <= state.stages[1].x + 25 && y >= state.stages[1].y - 25 && y <= state.stages[1].y + 25) {
-				state.move1 = true;
+		else { // pvp
+			if (x >= 175 && x <= 225 && y >= 15 && y <= 65) { //일시정지
+				state.tempstop = !state.tempstop;
+				if (state.tempstop) KillTimer(hWnd, 1);
+				else SetTimer(hWnd, 1, 100, NULL);
 			}
-			if (state.stages[0].clear && state.mapPlayerX == state.stages[0].x && state.mapPlayerY == state.stages[0].y && x >= state.stages[2].x - 25 && x <= state.stages[2].x + 25 && y >= state.stages[2].y - 25 && y <= state.stages[2].y + 25) {//게임 시작 클릭
-				state.move2 = true;  // 1 - > 2-2
-			}
-			if (state.stages[1].clear && state.mapPlayerX == state.stages[1].x && state.mapPlayerY == state.stages[1].y && x >= state.stages[3].x - 25 && x <= state.stages[3].x + 25 && y >= state.stages[3].y - 25 && y <= state.stages[3].y + 25) {//게임 시작 클릭
-				state.move3 = true;    //2-1 -> 3-1
-			}
-			if (state.stages[1].clear && state.mapPlayerX == state.stages[1].x && state.mapPlayerY == state.stages[1].y && x >= state.stages[4].x - 25 && x <= state.stages[4].x + 25 && y >= state.stages[4].y - 25 && y <= state.stages[4].y + 25) {//게임 시작 클릭
-				state.move4 = true;   // 2-1 -> 3-2
-			}
-			if (state.stages[2].clear && state.mapPlayerX == state.stages[2].x && state.mapPlayerY == state.stages[2].y && x >= state.stages[4].x - 25 && x <= state.stages[4].x + 25 && y >= state.stages[4].y - 25 && y <= state.stages[4].y + 25) {//게임 시작 클릭
-				state.move5 = true;   // 2-2 ->3-2
-			}
-			if (state.stages[2].clear && state.mapPlayerX == state.stages[2].x && state.mapPlayerY == state.stages[2].y && x >= state.stages[5].x - 25 && x <= state.stages[5].x + 25 && y >= state.stages[5].y - 25 && y <= state.stages[5].y + 25) {//게임 시작 클릭
-				state.move6 = true;  // 2-2 -> 3-3
-			}
-			if (state.stages[3].clear && state.mapPlayerX == state.stages[3].x && state.mapPlayerY == state.stages[3].y && x >= state.stages[6].x - 25 && x <= state.stages[6].x + 25 && y >= state.stages[6].y - 25 && y <= state.stages[6].y + 25) {//게임 시작 클릭
-				state.move7 = true; // 3-1 -> 4-1
-			}
-			if (state.stages[4].clear && state.mapPlayerX == state.stages[4].x && state.mapPlayerY == state.stages[4].y && x >= state.stages[6].x - 25 && x <= state.stages[6].x + 25 && y >= state.stages[6].y - 25 && y <= state.stages[6].y + 25) {//게임 시작 클릭
-				state.move8 = true; // 3-2 -> 4-1
-			}
-			if (state.stages[4].clear && state.mapPlayerX == state.stages[4].x && state.mapPlayerY == state.stages[4].y && x >= state.stages[7].x - 25 && x <= state.stages[7].x + 25 && y >= state.stages[7].y - 25 && y <= state.stages[7].y + 25) {//게임 시작 클릭
-				state.move9 = true; // 3-2 -> 4-2
-			}
-			if (state.stages[5].clear && state.mapPlayerX == state.stages[5].x && state.mapPlayerY == state.stages[5].y && x >= state.stages[7].x - 25 && x <= state.stages[7].x + 25 && y >= state.stages[7].y - 25 && y <= state.stages[7].y + 25) {//게임 시작 클릭
-				state.move10 = true;  // 3-3 -> 4-2
-			}
-			if (state.stages[6].clear && state.mapPlayerX == state.stages[6].x && state.mapPlayerY == state.stages[6].y && x >= state.stages[8].x - 25 && x <= state.stages[8].x + 25 && y >= state.stages[8].y - 25 && y <= state.stages[8].y + 25) {//게임 시작 클릭
-				state.move11 = true;  //4-1 -> boss
-			}
-			if (state.stages[7].clear && state.mapPlayerX == state.stages[7].x && state.mapPlayerY == state.stages[7].y && x >= state.stages[8].x - 25 && x <= state.stages[8].x + 25 && y >= state.stages[8].y - 25 && y <= state.stages[8].y + 25) {
-				state.move12 = true;
-			}
+			if (x >= 1050 && x <= 1120 && y >= 600 && y <= 655 && state.isPlayerTurn)
+				state.player.mana = 0; // 턴 종료 버튼
 
+			for (int i = 0; i < 5; ++i) {
+				if (state.player.hand[i].on && x >= state.player.hand[i].x - 70 && x <= state.player.hand[i].x + 70 && y >= state.player.hand[i].y - 100 && y <= state.player.hand[i].y + 100 && state.isPlayerTurn && !state.player.onepunching) {
+					state.player.hand[i].drag = true;
+				}
+				else state.player.hand[i].drag = false;
+			}
 			if (x >= 10 && x <= 70 && y >= 10 && y <= 70) {
 				state.StartScreen = true; // 시작 화면으로
-			}
-
-			// (전투 시작 버튼)
-			if ((x >= 500 && x <= 700 && y >= 5 && y <= 75) && ((state.stages[0].clear == false && state.mapPlayerX == state.stages[0].x && state.mapPlayerY == state.stages[0].y)
-				|| (state.stages[1].clear == false && state.mapPlayerX == state.stages[1].x && state.mapPlayerY == state.stages[1].y) || (state.stages[2].clear == false && state.mapPlayerX == state.stages[2].x && state.mapPlayerY == state.stages[2].y)
-				|| (state.stages[3].clear == false && state.mapPlayerX == state.stages[3].x && state.mapPlayerY == state.stages[3].y) || (state.stages[4].clear == false && state.mapPlayerX == state.stages[4].x && state.mapPlayerY == state.stages[4].y)
-				|| (state.stages[5].clear == false && state.mapPlayerX == state.stages[5].x && state.mapPlayerY == state.stages[5].y) || (state.stages[6].clear == false && state.mapPlayerX == state.stages[6].x && state.mapPlayerY == state.stages[6].y)
-				|| (state.stages[7].clear == false && state.mapPlayerX == state.stages[7].x && state.mapPlayerY == state.stages[7].y) || (state.stages[8].clear == false && state.mapPlayerX == state.stages[8].x && state.mapPlayerY == state.stages[8].y)
-				)) {
-				StartBattle(state);
 			}
 		}
 	}
@@ -1131,7 +1132,23 @@ void GameLogic::HandleLButtonDown(GameState& state, int x, int y, HWND hWnd)
 
 void GameLogic::HandleLButtonUp(GameState& state, int x, int y)
 {
-	if (state.MAIN) {
+	if (state.MAIN) { // 레이드
+		for (int i = 0; i < 5; ++i) {
+			if (state.player.hand[i].drag) {
+				if (i == 0) { state.player.hand[i].x = 300; state.player.hand[i].y = 700; }
+				else if (i == 1) { state.player.hand[i].x = 450; state.player.hand[i].y = 700; }
+				else if (i == 2) { state.player.hand[i].x = 600; state.player.hand[i].y = 700; }
+				else if (i == 3) { state.player.hand[i].x = 750; state.player.hand[i].y = 700; }
+				else if (i == 4) { state.player.hand[i].x = 900; state.player.hand[i].y = 700; }
+
+				if (state.enermytouch) { // 카드 발동
+					PlayCard(state, i);
+				}
+				state.player.hand[i].drag = false;
+			}
+		}
+	}
+	else { // pvp
 		for (int i = 0; i < 5; ++i) {
 			if (state.player.hand[i].drag) {
 				if (i == 0) { state.player.hand[i].x = 300; state.player.hand[i].y = 700; }
@@ -1707,7 +1724,7 @@ void GameLogic::UpdateBuffsAndTimers(GameState& state)
 		if (state.endendtime >= 15) {
 			state.endendtime = 0;
 			state.endend = false;
-			state.MAIN = false; 
+			state.StartScreen = true;
 			if (state.stages[8].clear) {
 				state.GameClear = true;
 			}
@@ -1724,7 +1741,7 @@ void GameLogic::UpdateBuffsAndTimers(GameState& state)
 			}
 			state.player.hp = 100;
 			state.player.playerdeath = false;
-			state.MAIN = false; 
+			state.StartScreen = true;
 			state.nowstage = 0;
 			lstrcpy(state.nowstagestr, L"STGAE 1");
 			state.mapPlayerX = state.stages[0].x; 
@@ -1855,7 +1872,7 @@ void GameLogic::UpdateBuffsAndTimers(GameState& state)
 
 void GameLogic::StartBattle(GameState& state)
 {
-	state.MAIN = true;
+	//state.MAIN = true;  //레이드랑 pvp로 분리
 	state.startstart = true; 
 	state.droww = true;     
 	state.enemy.death = false;
@@ -2192,10 +2209,10 @@ void Renderer::Render(HDC hdc, RECT rt, const GameState& state, const AssetManag
 		DrawStartScreenUI(mDC, imgDC, state, assets);
 	}
 	else if (state.MAIN) {
-		DrawBattleScreen(mDC, imgDC, state, assets);
+		DrawPVEScreen(mDC, imgDC, state, assets);
 	}
 	else {
-		DrawMapScreen(mDC, imgDC, state, assets);
+		DrawPvPScreen(mDC, imgDC, state, assets);
 	}
 
 	DrawHUD(mDC, state);
@@ -2215,13 +2232,9 @@ void Renderer::DrawBackground(HDC hdc, HDC imgDC, const GameState& state, const 
 		hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitBackground);
 		StretchBlt(hdc, 0, 0, 1180, 750, imgDC, 0, 0, assets.backWidth, assets.backHeight, SRCCOPY);
 	}
-	else if (state.MAIN) {
+	else {
 		hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitTemp2);
 		StretchBlt(hdc, state.backgroundX, state.backgroundY, 1185, 765, imgDC, 0, 0, assets.tempWidth2, assets.tempHeight2, SRCCOPY);
-	}
-	else {
-		hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitTemp);
-		StretchBlt(hdc, 0, 0, 1185, 750, imgDC, 0, 0, assets.tempWidth, assets.tempHeight, SRCCOPY);
 	}
 	SelectObject(imgDC, hOldImg);
 }
@@ -2243,130 +2256,56 @@ void Renderer::DrawStartScreenUI(HDC hdc, HDC imgDC, const GameState& state, con
 	SelectObject(imgDC, hOldImg);
 }
 
-void Renderer::DrawMapScreen(HDC hdc, HDC imgDC, const GameState& state, const AssetManager& assets) {
-	HBITMAP hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitwood);
-	TransparentBlt(hdc, 0, 0, 1185, 100, imgDC, 0, 0, assets.woodWidth, assets.woodHeight, RGB(255, 255, 255));
+HPEN hRedPen = CreatePen(PS_SOLID, 3, RGB(255, 0, 0));
+
+void Renderer::DrawPvPScreen(HDC hdc, HDC imgDC, const GameState& state, const AssetManager& assets) {
+	HBITMAP hOldImg;
+
+	hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitstone);
+	TransparentBlt(hdc, 100, -50, 785, 150, imgDC, 0, 0, assets.stoneWidth, assets.stoneHeight, RGB(0, 0, 0));
+	SelectObject(imgDC, hOldImg);
+
+	hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitShild);
+	TransparentBlt(hdc, 500, 20, 50, 50, imgDC, 0, 0, assets.ShildWidth, assets.ShildHeight, RGB(255, 255, 255));
+	if (!state.enemy.death) {
+		TransparentBlt(hdc, state.enemy.x, state.enemy.y - 100, 50, 50, imgDC, 0, 0, assets.ShildWidth, assets.ShildHeight, RGB(255, 255, 255));
+	}
+
+	SelectObject(imgDC, assets.hBitattack);
+	TransparentBlt(hdc, 630, 20, 50, 50, imgDC, 0, 0, assets.attackWidth, assets.attackHeight, RGB(255, 255, 255));
 
 	SelectObject(imgDC, assets.hBitReturn);
 	TransparentBlt(hdc, 10, 10, 70, 70, imgDC, 0, 0, assets.returnWidth, assets.returnHeight, RGB(255, 255, 255));
 
-	SelectObject(imgDC, assets.playbutton);
-	TransparentBlt(hdc, 500, 10, 200, 70, imgDC, 0, 0, assets.playWidth, assets.playHeight, RGB(100, 100, 100));
+	if (state.tempstop) SelectObject(imgDC, assets.hBitstop[1]);
+	else SelectObject(imgDC, assets.hBitstop[0]);
+	TransparentBlt(hdc, 160, 10, 70, 70, imgDC, 0, 0, assets.stopWidth, assets.stopHeight, RGB(255, 255, 255));
 
-	SelectObject(imgDC, assets.bossicon);
-	TransparentBlt(hdc, 562, 70, 75, 75, imgDC, 0, 0, assets.bossiconWidth, assets.bossiconHeight, RGB(255, 255, 255));
-	//4-1
-	SelectObject(imgDC, assets.Icon[0]);
-	TransparentBlt(hdc, 425, 225, 50, 60, imgDC, 0, 0, assets.stage4iconWidth, assets.stage4iconHeight, RGB(255, 255, 255));
-	//4-2
-	SelectObject(imgDC, assets.Icon[1]);
-	TransparentBlt(hdc, 725, 225, 50, 60, imgDC, 0, 0, assets.stage4iconWidth, assets.stage4iconHeight, RGB(255, 255, 255));
-	//3-1
-	SelectObject(imgDC, assets.Icon[2]);
-	TransparentBlt(hdc, 275, 375, 50, 50, imgDC, 0, 0, assets.stage3iconWidth, assets.stage3iconHeight, RGB(255, 255, 255));
-	//3-2
-	SelectObject(imgDC, assets.Icon[3]);
-	TransparentBlt(hdc, 575, 375, 50, 50, imgDC, 0, 0, assets.stage3iconWidth, assets.stage3iconHeight, RGB(255, 255, 255));
-	//3-3
-	SelectObject(imgDC, assets.Icon[4]);
-	TransparentBlt(hdc, 875, 375, 50, 50, imgDC, 0, 0, assets.stage3iconWidth, assets.stage3iconHeight, RGB(255, 255, 255));
-	//2-1
-	SelectObject(imgDC, assets.Icon[5]);
-	TransparentBlt(hdc, 425, 525, 50, 50, imgDC, 0, 0, assets.stage21iconWidth, assets.stage21iconHeight, RGB(255, 255, 255));
-	//2-2
-	SelectObject(imgDC, assets.Icon[6]);
-	TransparentBlt(hdc, 725, 525, 50, 50, imgDC, 0, 0, assets.stage22iconWidth, assets.stage22iconHeight, RGB(255, 255, 255));
-	//1-1
-	SelectObject(imgDC, assets.Icon[7]);
-	TransparentBlt(hdc, 575, 675, 50, 50, imgDC, 0, 0, assets.stage1iconWidth, assets.stage1iconHeight, RGB(255, 255, 255));
+	if (state.endon) SelectObject(imgDC, assets.endbutton[1]);
+	else SelectObject(imgDC, assets.endbutton[0]);
+	TransparentBlt(hdc, 1050, 600, 70, 55, imgDC, 0, 0, assets.endbuttonWidth, assets.endbuttonHeight, RGB(255, 255, 255));
 
-	// (WM_PAINT의 맵 라인 그리기)
-	HPEN hPen = CreatePen(PS_DOT, 3, RGB(0, 0, 0));
-	HPEN oldPen = (HPEN)SelectObject(hdc, hPen);
-	MoveToEx(hdc, state.stages[0].x, state.stages[0].y, NULL);
-	for (int i = 0; i < 13; ++i) LineTo(hdc, state.ppp1[i].x, state.ppp1[i].y);
-	LineTo(hdc, state.stages[1].x, state.stages[1].y);
-	//------------------
-	MoveToEx(hdc, state.stages[0].x, state.stages[0].y, NULL);
-	for (int i = 0; i < 13; ++i) {
-		LineTo(hdc, state.ppp2[i].x, state.ppp2[i].y);
-	}
-	LineTo(hdc, state.stages[2].x, state.stages[2].y);
-	//-------------------
-	MoveToEx(hdc, state.stages[1].x, state.stages[1].y, NULL);
-	for (int i = 0; i < 13; ++i) {
-		LineTo(hdc, state.ppp3[i].x, state.ppp3[i].y);
-	}
-	LineTo(hdc, state.stages[3].x, state.stages[3].y);
-	//-------------------
-	MoveToEx(hdc, state.stages[1].x, state.stages[1].y, NULL);
-	for (int i = 0; i < 13; ++i) {
-		LineTo(hdc, state.ppp4[i].x, state.ppp4[i].y);
-	}
-	LineTo(hdc, state.stages[4].x, state.stages[4].y);
-	//-------------------
-	MoveToEx(hdc, state.stages[2].x, state.stages[2].y, NULL);
-	for (int i = 0; i < 13; ++i) {
-		LineTo(hdc, state.ppp5[i].x, state.ppp5[i].y);
-	}
-	LineTo(hdc, state.stages[4].x, state.stages[4].y);
-	//-------------------
-	MoveToEx(hdc, state.stages[2].x, state.stages[2].y, NULL);
-	for (int i = 0; i < 13; ++i) {
-		LineTo(hdc, state.ppp6[i].x, state.ppp6[i].y);
-	}
-	LineTo(hdc, state.stages[5].x, state.stages[5].y);
-	//-------------------
-	MoveToEx(hdc, state.stages[3].x, state.stages[3].y, NULL);
-	for (int i = 0; i < 13; ++i) {
-		LineTo(hdc, state.ppp7[i].x, state.ppp7[i].y);
-	}
-	LineTo(hdc, state.stages[6].x, state.stages[6].y);
-	//-------------------
-	MoveToEx(hdc, state.stages[4].x, state.stages[4].y, NULL);
-	for (int i = 0; i < 13; ++i) {
-		LineTo(hdc, state.ppp8[i].x, state.ppp8[i].y);
-	}
-	LineTo(hdc, state.stages[6].x, state.stages[6].y);
-	//-------------------
-	MoveToEx(hdc, state.stages[4].x, state.stages[4].y, NULL);
-	for (int i = 0; i < 13; ++i) {
-		LineTo(hdc, state.ppp9[i].x, state.ppp9[i].y);
-	}
-	LineTo(hdc, state.stages[7].x, state.stages[7].y);
-	//-------------------
-	MoveToEx(hdc, state.stages[5].x, state.stages[5].y, NULL);
-	for (int i = 0; i < 13; ++i) {
-		LineTo(hdc, state.ppp10[i].x, state.ppp10[i].y);
-	}
-	LineTo(hdc, state.stages[7].x, state.stages[7].y);
-	//-------------------
-	MoveToEx(hdc, state.stages[6].x, state.stages[6].y, NULL);
-	for (int i = 0; i < 13; ++i) {
-		LineTo(hdc, state.ppp11[i].x, state.ppp11[i].y);
-	}
-	LineTo(hdc, state.stages[8].x, state.stages[8].y);
-	//-------------------
-	MoveToEx(hdc, state.stages[7].x, state.stages[7].y, NULL);
-	for (int i = 0; i < 13; ++i) {
-		LineTo(hdc, state.ppp12[i].x, state.ppp12[i].y);
-	}
-	LineTo(hdc, state.stages[8].x, state.stages[8].y);
-	//-------------------
-	MoveToEx(hdc, state.stages[7].x, state.stages[7].y, NULL);
-	for (int i = 0; i < 13; ++i) LineTo(hdc, state.ppp12[i].x, state.ppp12[i].y);
-	LineTo(hdc, state.stages[8].x, state.stages[8].y);
-	SelectObject(hdc, oldPen);
-	DeleteObject(hPen);
+	SelectObject(imgDC, hOldImg);
 
-	for (int i = 0; i < 9; ++i) {
-		if (state.stages[i].clear) ClearCross(hdc, state.stages[i].x, state.stages[i].y, 25);
+	//Draw Map
+	SelectObject(hdc, hRedPen);
+	constexpr float rateW = 0.4f;
+	constexpr float rateH = 0.8f;
+	for (int i = -2; i < 3; ++i) {
+		MoveToEx(hdc, MapCenterX + MapMoveMargin * i + PlayerW * rateW, MapCenterX - 2 * MapMoveMargin + PlayerH * rateH, NULL);
+		LineTo(hdc, MapCenterX + MapMoveMargin * i + PlayerW * rateW, MapCenterX + 2 * MapMoveMargin + PlayerH * rateH);
+		MoveToEx(hdc, MapCenterX - 2 * MapMoveMargin + PlayerW * rateW, MapCenterX + MapMoveMargin * i + PlayerH * rateH, NULL);
+		LineTo(hdc, MapCenterX + 2 * MapMoveMargin + PlayerW * rateW, MapCenterX + MapMoveMargin * i + PlayerH * rateH);
 	}
-	Ellipse(hdc, state.mapPlayerX - 15, state.mapPlayerY - 15, state.mapPlayerX + 15, state.mapPlayerY + 15);
+
+	DrawHand(hdc, imgDC, state, assets);
+	DrawCharacters(hdc, imgDC, state, assets);
+	DrawEffects(hdc, imgDC, state, assets);
 }
 
-HPEN hRedPen = CreatePen(PS_SOLID, 3, RGB(255, 0, 0));
-void Renderer::DrawBattleScreen(HDC hdc, HDC imgDC, const GameState& state, const AssetManager& assets) {
+
+
+void Renderer::DrawPVEScreen(HDC hdc, HDC imgDC, const GameState& state, const AssetManager& assets) {
 	HBITMAP hOldImg;
 
 	hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitstone);
@@ -2416,7 +2355,7 @@ void Renderer::DrawHUD(HDC hdc, const GameState& state) {
 	HBRUSH hBrush, oldBrush;
 	HPEN hPen, oldPen;
 
-	if (state.MAIN) {
+	if (state.MAIN) { // pvp 화면
 		if (state.startstart) {
 			hFont = CreateFont(200, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET,
 				OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
@@ -2578,34 +2517,167 @@ void Renderer::DrawHUD(HDC hdc, const GameState& state) {
 			}
 		}
 	}
-	else if (!state.StartScreen) {
+	else if (!state.StartScreen) { // 레이드 화면
+		if (state.startstart) {
+			hFont = CreateFont(200, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET,
+				OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+				DEFAULT_PITCH | FF_SWISS, L"Arial");
+			hOldFont = (HFONT)SelectObject(hdc, hFont);
+			SetBkMode(hdc, TRANSPARENT);
+			TextOut(hdc, 200, 300, state.nowstagestr, lstrlen(state.nowstagestr));
+			SelectObject(hdc, hOldFont);
+			DeleteObject(hFont);
+		}
+		if (state.endend) {
+			hFont = CreateFont(200, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET,
+				OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+				DEFAULT_PITCH | FF_SWISS, L"Arial");
+			hOldFont = (HFONT)SelectObject(hdc, hFont);
+			SetBkMode(hdc, TRANSPARENT);
+			TextOut(hdc, 60, 300, L"STAGE Clear", 11);
+			SelectObject(hdc, hOldFont);
+			DeleteObject(hFont);
+		}
+		if (state.pdeath) {
+			hFont = CreateFont(200, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET,
+				OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+				DEFAULT_PITCH | FF_SWISS, L"Arial");
+			hOldFont = (HFONT)SelectObject(hdc, hFont);
+			SetBkMode(hdc, TRANSPARENT);
+			TextOut(hdc, 80, 300, L"Game Over", 9);
+			SelectObject(hdc, hOldFont);
+			DeleteObject(hFont);
+		}
+
 		hFont = CreateFont(40, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET,
 			OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
 			DEFAULT_PITCH | FF_SWISS, L"Arial");
 		hOldFont = (HFONT)SelectObject(hdc, hFont);
 		SetBkMode(hdc, TRANSPARENT);
 
-		SetTextColor(hdc, RGB(33, 255, 0));
-		TextOut(hdc, 150, 30, L"HP : ", 4);
-		HPBar(hdc, 275, 50, state.player.hp);
+		// HP
+		SetTextColor(hdc, RGB(0, 0, 0));
+		TextOut(hdc, 300, 25, L"HP", 2);
+		HPBar(hdc, 410, 50, state.player.hp);
+		TCHAR tempBuffer[32];
+		if (state.decresehp) { // HP 감소 효과
+			SetTextColor(hdc, RGB(200, 33, 33));
+			wsprintf(tempBuffer, L"-%d", state.dedamge);
+			TextOut(hdc, 400, 18, tempBuffer, lstrlen(tempBuffer));
+		}
+		if (state.myheal) { // HP 회복 효과
+			SetTextColor(hdc, RGB(33, 200, 33));
+			wsprintf(tempBuffer, L"+%d", state.healenergy);
+			TextOut(hdc, 400, 18, tempBuffer, lstrlen(tempBuffer));
+		}
 
-		SetTextColor(hdc, RGB(33, 255, 200));
-		TextOut(hdc, 800, 30, state.nowstagestr, lstrlen(state.nowstagestr));
+		// Defense
+		SetTextColor(hdc, RGB(0, 33, 255));
+		wsprintf(tempBuffer, L"%d", state.player.defence);
+		TextOut(hdc, 580, 25, tempBuffer, lstrlen(tempBuffer));
 
+		if (state.player.defUp) {
+			SetTextColor(hdc, RGB(33, 33, 33));
+			wsprintf(tempBuffer, L"+%d", state.defenseup);
+			TextOut(hdc, 620, 18, tempBuffer, lstrlen(tempBuffer));
+		}
+		if (state.player.defDown) {
+			SetTextColor(hdc, RGB(33, 33, 33));
+			wsprintf(tempBuffer, L"-%d", state.defensedown);
+			TextOut(hdc, 620, 18, tempBuffer, lstrlen(tempBuffer));
+		}
+
+		// Attack
 		SetTextColor(hdc, RGB(255, 33, 0));
-		TextOut(hdc, state.stages[8].x - 20, state.stages[8].y + 30, L"BOSS", 4);
-		SetTextColor(hdc, RGB(50, 50, 50));
-		TextOut(hdc, state.stages[6].x - 15, state.stages[6].y + 30, L"4 - 1", 5);
-		TextOut(hdc, state.stages[7].x - 15, state.stages[7].y + 30, L"4 - 2", 5);
-		TextOut(hdc, state.stages[5].x - 15, state.stages[5].y + 30, L"3 - 3", 5);
-		TextOut(hdc, state.stages[4].x - 15, state.stages[4].y + 30, L"3 - 2", 5);
-		TextOut(hdc, state.stages[3].x - 15, state.stages[3].y + 30, L"3 - 1", 5);
-		TextOut(hdc, state.stages[2].x - 15, state.stages[2].y + 30, L"2 - 2", 5);
-		TextOut(hdc, state.stages[1].x - 15, state.stages[1].y + 30, L"2 - 1", 5);
-		TextOut(hdc, state.stages[0].x - 5, state.stages[0].y + 30, L"1", 1);
+		wsprintf(tempBuffer, L"%d", state.player.attack);
+		TextOut(hdc, 700, 25, tempBuffer, lstrlen(tempBuffer));
 
+		if (state.player.powerUp) {
+			SetTextColor(hdc, RGB(33, 33, 33));
+			wsprintf(tempBuffer, L"+%d", state.plusattack);
+			TextOut(hdc, 740, 18, tempBuffer, lstrlen(tempBuffer));
+		}
+		if (state.player.powerDown) {
+			SetTextColor(hdc, RGB(33, 33, 33));
+			wsprintf(tempBuffer, L"-%d", state.minusattack);
+			TextOut(hdc, 740, 18, tempBuffer, lstrlen(tempBuffer));
+		}
 		SelectObject(hdc, hOldFont);
 		DeleteObject(hFont);
+
+		hBrush = CreateSolidBrush(RGB(0, 174, 251));
+		oldBrush = (HBRUSH)SelectObject(hdc, hBrush);
+		POINT point[5] = { {100,550}, {100 - 60,550 + 50}, {100 - 60 + 20,550 + 40 + 90}, {100 + 60 - 20, 550 + 40 + 90}, {100 + 60, 550 + 50} };
+		Polygon(hdc, point, 5);
+		SelectObject(hdc, oldBrush);
+		DeleteObject(hBrush);
+
+		hFont = CreateFont(40, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Arial");
+		hOldFont = (HFONT)SelectObject(hdc, hFont);
+		SetBkMode(hdc, TRANSPARENT);
+		SetTextColor(hdc, RGB(33, 33, 33));
+
+		wsprintf(tempBuffer, L"%d / %d", state.player.mana, state.player.maxMana);
+		TextOut(hdc, 65, 600, tempBuffer, lstrlen(tempBuffer));
+
+		if (state.player.manaUp) {
+			SetTextColor(hdc, RGB(150, 150, 150));
+			wsprintf(tempBuffer, L"+%d", state.healmana);
+			TextOut(hdc, 145, 580, tempBuffer, lstrlen(tempBuffer));
+		}
+		if (state.player.manaDown) {
+			SetTextColor(hdc, RGB(150, 150, 150));
+			wsprintf(tempBuffer, L"-%d", state.killmana);
+			TextOut(hdc, 145, 610, tempBuffer, lstrlen(tempBuffer));
+		}
+		SelectObject(hdc, hOldFont);
+		DeleteObject(hFont);
+
+		if (!state.enemy.death) {
+			HPBar(hdc, state.enemy.x + 75, state.enemy.y - 30, state.enemy.hp);
+
+			hFont = CreateFont(40, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Arial");
+			hOldFont = (HFONT)SelectObject(hdc, hFont);
+			SetBkMode(hdc, TRANSPARENT);
+			SetTextColor(hdc, RGB(0, 33, 255));
+			wsprintf(tempBuffer, L"%d", state.enemy.defence);
+			TextOut(hdc, state.enemy.x + 75, state.enemy.y - 95, tempBuffer, lstrlen(tempBuffer));
+
+			if (state.enemy.defUp) {
+				SetTextColor(hdc, RGB(150, 133, 133));
+				wsprintf(tempBuffer, L"+%d", state.enermydeff);
+				TextOut(hdc, state.enemy.x + 115, state.enemy.y - 102, tempBuffer, lstrlen(tempBuffer));
+			}
+			if (state.enemy.defDown) {
+				SetTextColor(hdc, RGB(150, 133, 133));
+				wsprintf(tempBuffer, L"-%d", state.enermydeffdown);
+				TextOut(hdc, state.enemy.x + 115, state.enemy.y - 110, tempBuffer, lstrlen(tempBuffer));
+			}
+			// 적 HP 효과 (데미지/힐 텍스트)
+			if (state.dehp) {
+				SetTextColor(hdc, RGB(200, 33, 33));
+				wsprintf(tempBuffer, L"-%d", state.damage);
+				TextOut(hdc, state.enemy.x + 115, state.enemy.y - 100, tempBuffer, lstrlen(tempBuffer));
+			}
+			if (state.enemy.heal) {
+				SetTextColor(hdc, RGB(33, 200, 33));
+				wsprintf(tempBuffer, L"+%d", state.enemy.healEnergy);
+				TextOut(hdc, state.enemy.x + 115, state.enemy.y - 100, tempBuffer, lstrlen(tempBuffer));
+			}
+			SelectObject(hdc, hOldFont);
+			DeleteObject(hFont);
+
+			if (state.enermytouch) {
+				hPen = CreatePen(PS_SOLID, 3, RGB(255, 0, 0));
+				oldPen = (HPEN)SelectObject(hdc, hPen);
+				HBRUSH myBrush = (HBRUSH)GetStockObject(NULL_BRUSH);
+				HBRUSH oldBrush = (HBRUSH)SelectObject(hdc, myBrush);
+				Rectangle(hdc, state.enemy.x - 70, state.enemy.y - 60, state.enemy.x + 70, state.enemy.y + 60);
+				SelectObject(hdc, oldBrush);
+				SelectObject(hdc, oldPen);
+				DeleteObject(hPen);
+			}
+		}
 	}
 }
 
