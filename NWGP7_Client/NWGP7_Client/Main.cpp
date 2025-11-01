@@ -128,7 +128,7 @@ class GameState {
 public:
 	// 게임 화면 상태
 	bool StartScreen = true;
-	bool MAIN = false;  // true 일떄 레이드 false일때 pvp
+	bool PvEMode = false;  // true 일떄 레이드 false일때 pvp
 	bool descrtion = false;
 	bool end = false;
 	bool endon = false; // 턴 종료 버튼 활성화
@@ -882,7 +882,7 @@ void GameLogic::Update(GameState& state)
 		// 
 	}
 	else {
-		if (state.MAIN) {
+		if (state.PvEMode) {
 			UpdatePvE(state); // 전투
 		}
 		else {
@@ -911,7 +911,7 @@ void GameLogic::HandleMouseMove(GameState& state, int x, int y)
 		else state.end = false;
 	}
 	else {
-		if (state.MAIN) { // 레이드 
+		if (state.PvEMode) { // 레이드 
 			bool isDragging = false;
 			for (int i = 0; i < 5; ++i) if (state.player.hand[i].drag) isDragging = true;
 
@@ -969,18 +969,18 @@ void GameLogic::HandleLButtonDown(GameState& state, int x, int y, HWND hWnd)
 	if (state.StartScreen) {
 		if (x >= 900 && x <= 1150 && y >= 450 && y <= 500) { // pvp
 			state.StartScreen = false;
-			state.MAIN = false;
+			state.PvEMode = false;
 			StartBattle(state);
 		}
 		if (x >= 900 && x <= 1150 && y >= 530 && y <= 580) { // 레이드
 			state.StartScreen = false;
-			state.MAIN = true;
+			state.PvEMode = true;
 			StartBattle(state);
 		}
 		if (x >= 900 && x <= 1150 && y >= 610 && y <= 660) PostQuitMessage(0);
 	}
 	else {
-		if (state.MAIN) { // 레이드
+		if (state.PvEMode) { // 레이드
 			if (x >= 175 && x <= 225 && y >= 15 && y <= 65) { //일시정지
 				state.tempstop = !state.tempstop;
 				if (state.tempstop) KillTimer(hWnd, 1);
@@ -1023,7 +1023,7 @@ void GameLogic::HandleLButtonDown(GameState& state, int x, int y, HWND hWnd)
 
 void GameLogic::HandleLButtonUp(GameState& state, int x, int y)
 {
-	if (state.MAIN) { // 레이드
+	if (state.PvEMode) { // 레이드
 		for (int i = 0; i < 5; ++i) {
 			if (state.player.hand[i].drag) {
 				if (i == 0) { state.player.hand[i].x = 300; state.player.hand[i].y = 700; }
@@ -1464,7 +1464,7 @@ void GameLogic::UpdateBuffsAndTimers(GameState& state)
 
 void GameLogic::StartBattle(GameState& state)
 {
-	if (state.MAIN) { // 레이드
+	if (state.PvEMode) { // 레이드
 		state.startstart = true;
 		state.droww = true;
 		state.enemy.death = false;
@@ -1744,7 +1744,7 @@ void Renderer::Render(HDC hdc, RECT rt, const GameState& state, const AssetManag
 		DrawStartScreenUI(mDC, imgDC, state, assets);
 	}
 	else {
-		if (state.MAIN) {
+		if (state.PvEMode) {
 			DrawPVEScreen(mDC, imgDC, state, assets);
 		}
 		else {
@@ -1890,7 +1890,7 @@ void Renderer::DrawHUD(HDC hdc, const GameState& state) {
 	HPEN hPen, oldPen;
 
 	if (state.StartScreen == false) {
-		if (state.MAIN) { // 레이드 화면
+		if (state.PvEMode) { // 레이드 화면
 			if (state.startstart) {
 				hFont = CreateFont(200, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET,
 					OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
