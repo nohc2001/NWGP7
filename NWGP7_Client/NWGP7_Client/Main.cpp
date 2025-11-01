@@ -617,7 +617,6 @@ public:
 private:
 	void UpdatePvE(GameState& state, float deltaTime);
 	void UpdatePvP(GameState& state, float deltaTime);
-	void UpdateMap(GameState& state);
 
 	void CheckWinLossConditions(GameState& state);
 
@@ -1249,6 +1248,27 @@ void GameLogic::UpdateBattle_RealTime(GameState& state, float deltaTime)
 		}
 	}
 
+	if (state.droww) { // Ä«µå µ¦ »Ì±â
+		for (int i = 0; i < 5; ++i) {
+			state.player->hand[i].y -= 5;
+			state.player->hand[i].on = true;
+		}
+		if (state.player->hand[4].y <= 700) {
+			state.player->hand[4].y = 700;
+			state.droww = false;
+		}
+	}
+
+	if (state.trunendd) { // Ä«µå µ¦ÀÌ ³Ö±â
+		for (int i = 0; i < 5; ++i) {
+			state.player->hand[i].y += 5;
+		}
+		if (state.player->hand[4].y >= 900) {
+			state.player->hand[4].y = 900;
+			state.trunendd = false;
+		}
+	}
+
 	//enemy update
 	if (state.enemy.hp <= 0) {
 		state.enemy.death = true;
@@ -1396,27 +1416,6 @@ void GameLogic::UpdateBuffsAndTimers(GameState& state, float deltaTime)
 			state.mapPlayerX = state.stages[0].x;
 			state.mapPlayerY = state.stages[0].y;
 		}*/
-	}
-
-	if (state.droww) { // Ä«µå µ¦ »Ì±â
-		for (int i = 0; i < 5; ++i) {
-			state.player->hand[i].y -= 20;
-			state.player->hand[i].on = true;
-		}
-		if (state.player->hand[4].y <= 700) {
-			state.player->hand[4].y = 700;
-			state.droww = false;
-		}
-	}
-
-	if (state.trunendd) { // Ä«µå µ¦ÀÌ ³Ö±â
-		for (int i = 0; i < 5; ++i) {
-			state.player->hand[i].y += 20;
-		}
-		if (state.player->hand[4].y >= 900) {
-			state.player->hand[4].y = 900;
-			state.trunendd = false;
-		}
 	}
 
 	if (state.quake) { //ÁöÁø
@@ -1610,6 +1609,7 @@ void GameLogic::StartBattle(GameState& state)
 	state.droww = true;
 	state.enemy.death = false;
 	state.startstarttime = 0;
+	state.bossId = rand() % 9;
 
 	//$Chang Player Init
 	for (int i = 0; i < GameState::playerCount; ++i) {
