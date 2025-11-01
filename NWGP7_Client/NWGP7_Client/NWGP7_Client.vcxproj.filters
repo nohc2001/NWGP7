@@ -1,0 +1,472 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="소스 파일">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="헤더 파일">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="리소스 파일">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Main.cpp">
+      <Filter>소스 파일</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="resource.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="Resource.rc">
+      <Filter>리소스 파일</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="Background.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="메뉴 텍스처.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="임시 화면.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="지도.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="돌아가기 이미지.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="돌아가기_이미지-removebg-preview.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="카드1.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="카드2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="카드3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="카드4.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="카드5.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="배경.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="나무판자.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="메뉴 텍스처2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="메뉴 텍스처3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="보스 이미지.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="스테이지 4-1.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="스테이지 4-2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="스테이지3-1.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="스테이지3-2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="스테이지3-3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="스테이지 2-1.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="스테이지2-2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="스테이지1.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="메인화면.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="bitmap24.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="돌 메뉴.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="슬라임.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="슬라임2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="슬라임1.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="슬라임3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="방어.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="play.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="일시정지.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="재생.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="카드6.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="카드7.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="카드8.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="카드9.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="카드10.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="카드11.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="카드12.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="bitmap39.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="카드13.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="카드14.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="카드15.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="공격.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="주인공1.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="주인공2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="주인공3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="end 버튼.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="end 버튼2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="폭발1.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="폭발2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="폭발3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="폭발4.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="폭발5.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="폭발6.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="폭발7.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="폭발8.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="카드5.5.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="사망.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="기사1.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="기사2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="기사3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="주술자1.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="주술자2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="주술자3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="미친 거북이.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="미친 거북이2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="미친 거북이3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="거북이.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="거북이2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="거북이3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="개1.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="개2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="개3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="두더지1.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="두더지2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="두더지3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="두더지4.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="두더지5.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="두더지 땅굴1.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="두더지 땅굴2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="두더지 땅굴3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="두더지 공격1.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="두더지 공격2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="두더지 공격3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="마트료시카1.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="마트료시카1-2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="마트료시카1-3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="마트료시카2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="마트료시카2-2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="마트료시카2-3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="마트료시카3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="마트료시카3-2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="마트료시카3-3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="마트료시카4.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="마트료시카4-2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="마트료시카4-3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="관1.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="관2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="관3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="관4.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="관5.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="관6.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="보스 각성전 1.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="보스 각성전 2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="보스 각성전 3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="보스 각성전 4.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="보스 각성전 5.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="보스 각성전 6.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="진 보스1.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="진 보스2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="진 보스3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="진 보스4.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="진 보스5.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="진 보스6.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="정조준 1.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="정조준 2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="정조준 3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="정조준 4.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="정조준 5.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="일격1.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="일격2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="일격3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="일격4.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="일격5.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="참격1.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="참격2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="참격3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="참격4.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="참격5.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="철괴1.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="철괴2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="철괴3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="철괴4.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="철괴5.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="타격1.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="타격2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="타격3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="절대 방어1.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="절대 방어2.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="절대 방어3.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="절대 방어4.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+    <Image Include="절대 방어5.bmp">
+      <Filter>리소스 파일</Filter>
+    </Image>
+  </ItemGroup>
+</Project>
