@@ -995,7 +995,7 @@ void GameLogic::HandleLButtonDown(GameState& state, int x, int y, HWND hWnd)
 				}
 				else state.player.hand[i].drag = false;
 			}
-			if (x >= 10 && x <= 70 && y >= 10 && y <= 70) {
+			if (x >= 10 && x <= 70 && y >= 10 && y <= 70) { // 시작화면
 				state.StartScreen = true;
 			}
 		}
@@ -1483,6 +1483,11 @@ void GameLogic::StartBattle(GameState& state)
 
 		state.boss = true; // boss 활성화
 		state.bossId = rand() % 9;
+
+		// 임시 보스 위치
+		state.enemy.x = 850;
+		state.enemy.y = 250;
+
 	}
 	else { // PvP
 		state.startstart = true;
@@ -1738,11 +1743,13 @@ void Renderer::Render(HDC hdc, RECT rt, const GameState& state, const AssetManag
 	if (state.StartScreen) {
 		DrawStartScreenUI(mDC, imgDC, state, assets);
 	}
-	else if (state.MAIN) {
-		DrawPVEScreen(mDC, imgDC, state, assets);
-	}
 	else {
-		DrawPvPScreen(mDC, imgDC, state, assets);
+		if (state.MAIN) {
+			DrawPVEScreen(mDC, imgDC, state, assets);
+		}
+		else {
+			DrawPvPScreen(mDC, imgDC, state, assets);
+		}
 	}
 
 	DrawHUD(mDC, state);
@@ -1797,9 +1804,6 @@ void Renderer::DrawPvPScreen(HDC hdc, HDC imgDC, const GameState& state, const A
 
 	hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitShild);
 	TransparentBlt(hdc, 500, 20, 50, 50, imgDC, 0, 0, assets.ShildWidth, assets.ShildHeight, RGB(255, 255, 255));
-	if (!state.enemy.death) {
-		TransparentBlt(hdc, state.enemy.x, state.enemy.y - 100, 50, 50, imgDC, 0, 0, assets.ShildWidth, assets.ShildHeight, RGB(255, 255, 255));
-	}
 
 	SelectObject(imgDC, assets.hBitattack);
 	TransparentBlt(hdc, 630, 20, 50, 50, imgDC, 0, 0, assets.attackWidth, assets.attackHeight, RGB(255, 255, 255));
@@ -1885,328 +1889,284 @@ void Renderer::DrawHUD(HDC hdc, const GameState& state) {
 	HBRUSH hBrush, oldBrush;
 	HPEN hPen, oldPen;
 
-	if (state.MAIN) { // pvp 화면
-		if (state.startstart) {
-			hFont = CreateFont(200, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET,
+	if (state.StartScreen == false) {
+		if (state.MAIN) { // 레이드 화면
+			if (state.startstart) {
+				hFont = CreateFont(200, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET,
+					OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+					DEFAULT_PITCH | FF_SWISS, L"Arial");
+				hOldFont = (HFONT)SelectObject(hdc, hFont);
+				SetBkMode(hdc, TRANSPARENT);
+				TextOut(hdc, 200, 300, state.nowstagestr, lstrlen(state.nowstagestr));
+				SelectObject(hdc, hOldFont);
+				DeleteObject(hFont);
+			}
+			if (state.endend) {
+				hFont = CreateFont(200, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET,
+					OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+					DEFAULT_PITCH | FF_SWISS, L"Arial");
+				hOldFont = (HFONT)SelectObject(hdc, hFont);
+				SetBkMode(hdc, TRANSPARENT);
+				TextOut(hdc, 60, 300, L"STAGE Clear", 11);
+				SelectObject(hdc, hOldFont);
+				DeleteObject(hFont);
+			}
+			if (state.pdeath) {
+				hFont = CreateFont(200, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET,
+					OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+					DEFAULT_PITCH | FF_SWISS, L"Arial");
+				hOldFont = (HFONT)SelectObject(hdc, hFont);
+				SetBkMode(hdc, TRANSPARENT);
+				TextOut(hdc, 80, 300, L"Game Over", 9);
+				SelectObject(hdc, hOldFont);
+				DeleteObject(hFont);
+			}
+
+			hFont = CreateFont(40, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET,
 				OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
 				DEFAULT_PITCH | FF_SWISS, L"Arial");
 			hOldFont = (HFONT)SelectObject(hdc, hFont);
 			SetBkMode(hdc, TRANSPARENT);
-			TextOut(hdc, 200, 300, state.nowstagestr, lstrlen(state.nowstagestr));
+
+			// HP
+			SetTextColor(hdc, RGB(0, 0, 0));
+			TextOut(hdc, 300, 25, L"HP", 2);
+			HPBar(hdc, 410, 50, state.player.hp);
+			TCHAR tempBuffer[32];
+			if (state.decresehp) { // HP 감소 효과
+				SetTextColor(hdc, RGB(200, 33, 33));
+				wsprintf(tempBuffer, L"-%d", state.dedamge);
+				TextOut(hdc, 400, 18, tempBuffer, lstrlen(tempBuffer));
+			}
+			if (state.myheal) { // HP 회복 효과
+				SetTextColor(hdc, RGB(33, 200, 33));
+				wsprintf(tempBuffer, L"+%d", state.healenergy);
+				TextOut(hdc, 400, 18, tempBuffer, lstrlen(tempBuffer));
+			}
+
+			// Defense
+			SetTextColor(hdc, RGB(0, 33, 255));
+			wsprintf(tempBuffer, L"%d", state.player.defence);
+			TextOut(hdc, 580, 25, tempBuffer, lstrlen(tempBuffer));
+
+			if (state.player.defUp) {
+				SetTextColor(hdc, RGB(33, 33, 33));
+				wsprintf(tempBuffer, L"+%d", state.defenseup);
+				TextOut(hdc, 620, 18, tempBuffer, lstrlen(tempBuffer));
+			}
+			if (state.player.defDown) {
+				SetTextColor(hdc, RGB(33, 33, 33));
+				wsprintf(tempBuffer, L"-%d", state.defensedown);
+				TextOut(hdc, 620, 18, tempBuffer, lstrlen(tempBuffer));
+			}
+
+			// Attack
+			SetTextColor(hdc, RGB(255, 33, 0));
+			wsprintf(tempBuffer, L"%d", state.player.attack);
+			TextOut(hdc, 700, 25, tempBuffer, lstrlen(tempBuffer));
+
+			if (state.player.powerUp) {
+				SetTextColor(hdc, RGB(33, 33, 33));
+				wsprintf(tempBuffer, L"+%d", state.plusattack);
+				TextOut(hdc, 740, 18, tempBuffer, lstrlen(tempBuffer));
+			}
+			if (state.player.powerDown) {
+				SetTextColor(hdc, RGB(33, 33, 33));
+				wsprintf(tempBuffer, L"-%d", state.minusattack);
+				TextOut(hdc, 740, 18, tempBuffer, lstrlen(tempBuffer));
+			}
 			SelectObject(hdc, hOldFont);
 			DeleteObject(hFont);
-		}
-		if (state.endend) {
-			hFont = CreateFont(200, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET,
-				OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
-				DEFAULT_PITCH | FF_SWISS, L"Arial");
-			hOldFont = (HFONT)SelectObject(hdc, hFont);
-			SetBkMode(hdc, TRANSPARENT);
-			TextOut(hdc, 60, 300, L"STAGE Clear", 11);
-			SelectObject(hdc, hOldFont);
-			DeleteObject(hFont);
-		}
-		if (state.pdeath) {
-			hFont = CreateFont(200, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET,
-				OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
-				DEFAULT_PITCH | FF_SWISS, L"Arial");
-			hOldFont = (HFONT)SelectObject(hdc, hFont);
-			SetBkMode(hdc, TRANSPARENT);
-			TextOut(hdc, 80, 300, L"Game Over", 9);
-			SelectObject(hdc, hOldFont);
-			DeleteObject(hFont);
-		}
 
-		hFont = CreateFont(40, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET,
-			OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
-			DEFAULT_PITCH | FF_SWISS, L"Arial");
-		hOldFont = (HFONT)SelectObject(hdc, hFont);
-		SetBkMode(hdc, TRANSPARENT);
-
-		// HP
-		SetTextColor(hdc, RGB(0, 0, 0));
-		TextOut(hdc, 300, 25, L"HP", 2);
-		HPBar(hdc, 410, 50, state.player.hp);
-		TCHAR tempBuffer[32]; 
-		if (state.decresehp) { // HP 감소 효과
-			SetTextColor(hdc, RGB(200, 33, 33));
-			wsprintf(tempBuffer, L"-%d", state.dedamge);
-			TextOut(hdc, 400, 18, tempBuffer, lstrlen(tempBuffer));
-		}
-		if (state.myheal) { // HP 회복 효과
-			SetTextColor(hdc, RGB(33, 200, 33));
-			wsprintf(tempBuffer, L"+%d", state.healenergy);
-			TextOut(hdc, 400, 18, tempBuffer, lstrlen(tempBuffer));
-		}
-
-		// Defense
-		SetTextColor(hdc, RGB(0, 33, 255));
-		wsprintf(tempBuffer, L"%d", state.player.defence);
-		TextOut(hdc, 580, 25, tempBuffer, lstrlen(tempBuffer));
-
-		if (state.player.defUp) { 
-			SetTextColor(hdc, RGB(33, 33, 33));
-			wsprintf(tempBuffer, L"+%d", state.defenseup);
-			TextOut(hdc, 620, 18, tempBuffer, lstrlen(tempBuffer));
-		}
-		if (state.player.defDown) {
-			SetTextColor(hdc, RGB(33, 33, 33));
-			wsprintf(tempBuffer, L"-%d", state.defensedown);
-			TextOut(hdc, 620, 18, tempBuffer, lstrlen(tempBuffer));
-		}
-
-		// Attack
-		SetTextColor(hdc, RGB(255, 33, 0));
-		wsprintf(tempBuffer, L"%d", state.player.attack);
-		TextOut(hdc, 700, 25, tempBuffer, lstrlen(tempBuffer));
-
-		if (state.player.powerUp) {
-			SetTextColor(hdc, RGB(33, 33, 33));
-			wsprintf(tempBuffer, L"+%d", state.plusattack);
-			TextOut(hdc, 740, 18, tempBuffer, lstrlen(tempBuffer));
-		}
-		if (state.player.powerDown) { 
-			SetTextColor(hdc, RGB(33, 33, 33));
-			wsprintf(tempBuffer, L"-%d", state.minusattack);
-			TextOut(hdc, 740, 18, tempBuffer, lstrlen(tempBuffer));
-		}
-		SelectObject(hdc, hOldFont); 
-		DeleteObject(hFont);
-
-		hBrush = CreateSolidBrush(RGB(0, 174, 251));
-		oldBrush = (HBRUSH)SelectObject(hdc, hBrush);
-		POINT point[5] = { {100,550}, {100 - 60,550 + 50}, {100 - 60 + 20,550 + 40 + 90}, {100 + 60 - 20, 550 + 40 + 90}, {100 + 60, 550 + 50} };
-		Polygon(hdc, point, 5);
-		SelectObject(hdc, oldBrush);
-		DeleteObject(hBrush);
-
-		hFont = CreateFont(40, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Arial");
-		hOldFont = (HFONT)SelectObject(hdc, hFont);
-		SetBkMode(hdc, TRANSPARENT);
-		SetTextColor(hdc, RGB(33, 33, 33));
-
-		wsprintf(tempBuffer, L"%d / %d", state.player.mana, state.player.maxMana);
-		TextOut(hdc, 65, 600, tempBuffer, lstrlen(tempBuffer));
-
-		if (state.player.manaUp) {
-			SetTextColor(hdc, RGB(150, 150, 150));
-			wsprintf(tempBuffer, L"+%d", state.healmana);
-			TextOut(hdc, 145, 580, tempBuffer, lstrlen(tempBuffer));
-		}
-		if (state.player.manaDown) {
-			SetTextColor(hdc, RGB(150, 150, 150));
-			wsprintf(tempBuffer, L"-%d", state.killmana);
-			TextOut(hdc, 145, 610, tempBuffer, lstrlen(tempBuffer));
-		}
-		SelectObject(hdc, hOldFont);
-		DeleteObject(hFont);
-
-		if (!state.enemy.death) {
-			HPBar(hdc, state.enemy.x + 75, state.enemy.y - 30, state.enemy.hp);
+			hBrush = CreateSolidBrush(RGB(0, 174, 251));
+			oldBrush = (HBRUSH)SelectObject(hdc, hBrush);
+			POINT point[5] = { {100,550}, {100 - 60,550 + 50}, {100 - 60 + 20,550 + 40 + 90}, {100 + 60 - 20, 550 + 40 + 90}, {100 + 60, 550 + 50} };
+			Polygon(hdc, point, 5);
+			SelectObject(hdc, oldBrush);
+			DeleteObject(hBrush);
 
 			hFont = CreateFont(40, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Arial");
 			hOldFont = (HFONT)SelectObject(hdc, hFont);
 			SetBkMode(hdc, TRANSPARENT);
-			SetTextColor(hdc, RGB(0, 33, 255));
-			wsprintf(tempBuffer, L"%d", state.enemy.defence);
-			TextOut(hdc, state.enemy.x + 75, state.enemy.y - 95, tempBuffer, lstrlen(tempBuffer));
+			SetTextColor(hdc, RGB(33, 33, 33));
 
-			if (state.enemy.defUp) {
-				SetTextColor(hdc, RGB(150, 133, 133));
-				wsprintf(tempBuffer, L"+%d", state.enermydeff);
-				TextOut(hdc, state.enemy.x + 115, state.enemy.y - 102, tempBuffer, lstrlen(tempBuffer));
+			wsprintf(tempBuffer, L"%d / %d", state.player.mana, state.player.maxMana);
+			TextOut(hdc, 65, 600, tempBuffer, lstrlen(tempBuffer));
+
+			if (state.player.manaUp) {
+				SetTextColor(hdc, RGB(150, 150, 150));
+				wsprintf(tempBuffer, L"+%d", state.healmana);
+				TextOut(hdc, 145, 580, tempBuffer, lstrlen(tempBuffer));
 			}
-			if (state.enemy.defDown) { 
-				SetTextColor(hdc, RGB(150, 133, 133));
-				wsprintf(tempBuffer, L"-%d", state.enermydeffdown);
-				TextOut(hdc, state.enemy.x + 115, state.enemy.y - 110, tempBuffer, lstrlen(tempBuffer));
+			if (state.player.manaDown) {
+				SetTextColor(hdc, RGB(150, 150, 150));
+				wsprintf(tempBuffer, L"-%d", state.killmana);
+				TextOut(hdc, 145, 610, tempBuffer, lstrlen(tempBuffer));
 			}
-			// 적 HP 효과 (데미지/힐 텍스트)
-			if (state.dehp) { 
+			SelectObject(hdc, hOldFont);
+			DeleteObject(hFont);
+
+			if (!state.enemy.death) {
+				HPBar(hdc, state.enemy.x + 75, state.enemy.y - 30, state.enemy.hp);
+
+				hFont = CreateFont(40, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Arial");
+				hOldFont = (HFONT)SelectObject(hdc, hFont);
+				SetBkMode(hdc, TRANSPARENT);
+				SetTextColor(hdc, RGB(0, 33, 255));
+				wsprintf(tempBuffer, L"%d", state.enemy.defence);
+				TextOut(hdc, state.enemy.x + 75, state.enemy.y - 95, tempBuffer, lstrlen(tempBuffer));
+
+				if (state.enemy.defUp) {
+					SetTextColor(hdc, RGB(150, 133, 133));
+					wsprintf(tempBuffer, L"+%d", state.enermydeff);
+					TextOut(hdc, state.enemy.x + 115, state.enemy.y - 102, tempBuffer, lstrlen(tempBuffer));
+				}
+				if (state.enemy.defDown) {
+					SetTextColor(hdc, RGB(150, 133, 133));
+					wsprintf(tempBuffer, L"-%d", state.enermydeffdown);
+					TextOut(hdc, state.enemy.x + 115, state.enemy.y - 110, tempBuffer, lstrlen(tempBuffer));
+				}
+				// 적 HP 효과 (데미지/힐 텍스트)
+				if (state.dehp) {
+					SetTextColor(hdc, RGB(200, 33, 33));
+					wsprintf(tempBuffer, L"-%d", state.damage);
+					TextOut(hdc, state.enemy.x + 115, state.enemy.y - 100, tempBuffer, lstrlen(tempBuffer));
+				}
+				if (state.enemy.heal) {
+					SetTextColor(hdc, RGB(33, 200, 33));
+					wsprintf(tempBuffer, L"+%d", state.enemy.healEnergy);
+					TextOut(hdc, state.enemy.x + 115, state.enemy.y - 100, tempBuffer, lstrlen(tempBuffer));
+				}
+				SelectObject(hdc, hOldFont);
+				DeleteObject(hFont);
+
+				if (state.enermytouch) {
+					hPen = CreatePen(PS_SOLID, 3, RGB(255, 0, 0));
+					oldPen = (HPEN)SelectObject(hdc, hPen);
+					HBRUSH myBrush = (HBRUSH)GetStockObject(NULL_BRUSH);
+					HBRUSH oldBrush = (HBRUSH)SelectObject(hdc, myBrush);
+					Rectangle(hdc, state.enemy.x - 70, state.enemy.y - 60, state.enemy.x + 70, state.enemy.y + 60);
+					SelectObject(hdc, oldBrush);
+					SelectObject(hdc, oldPen);
+					DeleteObject(hPen);
+				}
+			}
+		}
+		else { // PVP 화면
+			if (state.startstart) {
+				hFont = CreateFont(200, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET,
+					OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+					DEFAULT_PITCH | FF_SWISS, L"Arial");
+				hOldFont = (HFONT)SelectObject(hdc, hFont);
+				SetBkMode(hdc, TRANSPARENT);
+				TextOut(hdc, 200, 300, state.nowstagestr, lstrlen(state.nowstagestr));
+				SelectObject(hdc, hOldFont);
+				DeleteObject(hFont);
+			}
+			if (state.endend) {
+				hFont = CreateFont(200, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET,
+					OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+					DEFAULT_PITCH | FF_SWISS, L"Arial");
+				hOldFont = (HFONT)SelectObject(hdc, hFont);
+				SetBkMode(hdc, TRANSPARENT);
+				TextOut(hdc, 60, 300, L"STAGE Clear", 11);
+				SelectObject(hdc, hOldFont);
+				DeleteObject(hFont);
+			}
+			if (state.pdeath) {
+				hFont = CreateFont(200, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET,
+					OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+					DEFAULT_PITCH | FF_SWISS, L"Arial");
+				hOldFont = (HFONT)SelectObject(hdc, hFont);
+				SetBkMode(hdc, TRANSPARENT);
+				TextOut(hdc, 80, 300, L"Game Over", 9);
+				SelectObject(hdc, hOldFont);
+				DeleteObject(hFont);
+			}
+
+			hFont = CreateFont(40, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET,
+				OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+				DEFAULT_PITCH | FF_SWISS, L"Arial");
+			hOldFont = (HFONT)SelectObject(hdc, hFont);
+			SetBkMode(hdc, TRANSPARENT);
+
+			// HP
+			SetTextColor(hdc, RGB(0, 0, 0));
+			TextOut(hdc, 300, 25, L"HP", 2);
+			HPBar(hdc, 410, 50, state.player.hp);
+			TCHAR tempBuffer[32];
+			if (state.decresehp) { // HP 감소 효과
 				SetTextColor(hdc, RGB(200, 33, 33));
-				wsprintf(tempBuffer, L"-%d", state.damage);
-				TextOut(hdc, state.enemy.x + 115, state.enemy.y - 100, tempBuffer, lstrlen(tempBuffer)); 
+				wsprintf(tempBuffer, L"-%d", state.dedamge);
+				TextOut(hdc, 400, 18, tempBuffer, lstrlen(tempBuffer));
 			}
-			if (state.enemy.heal) {
+			if (state.myheal) { // HP 회복 효과
 				SetTextColor(hdc, RGB(33, 200, 33));
-				wsprintf(tempBuffer, L"+%d", state.enemy.healEnergy);
-				TextOut(hdc, state.enemy.x + 115, state.enemy.y - 100, tempBuffer, lstrlen(tempBuffer));
+				wsprintf(tempBuffer, L"+%d", state.healenergy);
+				TextOut(hdc, 400, 18, tempBuffer, lstrlen(tempBuffer));
+			}
+
+			// Defense
+			SetTextColor(hdc, RGB(0, 33, 255));
+			wsprintf(tempBuffer, L"%d", state.player.defence);
+			TextOut(hdc, 580, 25, tempBuffer, lstrlen(tempBuffer));
+
+			if (state.player.defUp) {
+				SetTextColor(hdc, RGB(33, 33, 33));
+				wsprintf(tempBuffer, L"+%d", state.defenseup);
+				TextOut(hdc, 620, 18, tempBuffer, lstrlen(tempBuffer));
+			}
+			if (state.player.defDown) {
+				SetTextColor(hdc, RGB(33, 33, 33));
+				wsprintf(tempBuffer, L"-%d", state.defensedown);
+				TextOut(hdc, 620, 18, tempBuffer, lstrlen(tempBuffer));
+			}
+
+			// Attack
+			SetTextColor(hdc, RGB(255, 33, 0));
+			wsprintf(tempBuffer, L"%d", state.player.attack);
+			TextOut(hdc, 700, 25, tempBuffer, lstrlen(tempBuffer));
+
+			if (state.player.powerUp) {
+				SetTextColor(hdc, RGB(33, 33, 33));
+				wsprintf(tempBuffer, L"+%d", state.plusattack);
+				TextOut(hdc, 740, 18, tempBuffer, lstrlen(tempBuffer));
+			}
+			if (state.player.powerDown) {
+				SetTextColor(hdc, RGB(33, 33, 33));
+				wsprintf(tempBuffer, L"-%d", state.minusattack);
+				TextOut(hdc, 740, 18, tempBuffer, lstrlen(tempBuffer));
 			}
 			SelectObject(hdc, hOldFont);
 			DeleteObject(hFont);
 
-			if (state.enermytouch) {
-				hPen = CreatePen(PS_SOLID, 3, RGB(255, 0, 0));
-				oldPen = (HPEN)SelectObject(hdc, hPen);
-				HBRUSH myBrush = (HBRUSH)GetStockObject(NULL_BRUSH);
-				HBRUSH oldBrush = (HBRUSH)SelectObject(hdc, myBrush);
-				Rectangle(hdc, state.enemy.x - 70, state.enemy.y - 60, state.enemy.x + 70, state.enemy.y + 60);
-				SelectObject(hdc, oldBrush);
-				SelectObject(hdc, oldPen);
-				DeleteObject(hPen);
-			}
-		}
-	}
-	else if (!state.StartScreen) { // 레이드 화면
-		if (state.startstart) {
-			hFont = CreateFont(200, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET,
-				OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
-				DEFAULT_PITCH | FF_SWISS, L"Arial");
-			hOldFont = (HFONT)SelectObject(hdc, hFont);
-			SetBkMode(hdc, TRANSPARENT);
-			TextOut(hdc, 200, 300, state.nowstagestr, lstrlen(state.nowstagestr));
-			SelectObject(hdc, hOldFont);
-			DeleteObject(hFont);
-		}
-		if (state.endend) {
-			hFont = CreateFont(200, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET,
-				OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
-				DEFAULT_PITCH | FF_SWISS, L"Arial");
-			hOldFont = (HFONT)SelectObject(hdc, hFont);
-			SetBkMode(hdc, TRANSPARENT);
-			TextOut(hdc, 60, 300, L"STAGE Clear", 11);
-			SelectObject(hdc, hOldFont);
-			DeleteObject(hFont);
-		}
-		if (state.pdeath) {
-			hFont = CreateFont(200, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET,
-				OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
-				DEFAULT_PITCH | FF_SWISS, L"Arial");
-			hOldFont = (HFONT)SelectObject(hdc, hFont);
-			SetBkMode(hdc, TRANSPARENT);
-			TextOut(hdc, 80, 300, L"Game Over", 9);
-			SelectObject(hdc, hOldFont);
-			DeleteObject(hFont);
-		}
-
-		hFont = CreateFont(40, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET,
-			OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
-			DEFAULT_PITCH | FF_SWISS, L"Arial");
-		hOldFont = (HFONT)SelectObject(hdc, hFont);
-		SetBkMode(hdc, TRANSPARENT);
-
-		// HP
-		SetTextColor(hdc, RGB(0, 0, 0));
-		TextOut(hdc, 300, 25, L"HP", 2);
-		HPBar(hdc, 410, 50, state.player.hp);
-		TCHAR tempBuffer[32];
-		if (state.decresehp) { // HP 감소 효과
-			SetTextColor(hdc, RGB(200, 33, 33));
-			wsprintf(tempBuffer, L"-%d", state.dedamge);
-			TextOut(hdc, 400, 18, tempBuffer, lstrlen(tempBuffer));
-		}
-		if (state.myheal) { // HP 회복 효과
-			SetTextColor(hdc, RGB(33, 200, 33));
-			wsprintf(tempBuffer, L"+%d", state.healenergy);
-			TextOut(hdc, 400, 18, tempBuffer, lstrlen(tempBuffer));
-		}
-
-		// Defense
-		SetTextColor(hdc, RGB(0, 33, 255));
-		wsprintf(tempBuffer, L"%d", state.player.defence);
-		TextOut(hdc, 580, 25, tempBuffer, lstrlen(tempBuffer));
-
-		if (state.player.defUp) {
-			SetTextColor(hdc, RGB(33, 33, 33));
-			wsprintf(tempBuffer, L"+%d", state.defenseup);
-			TextOut(hdc, 620, 18, tempBuffer, lstrlen(tempBuffer));
-		}
-		if (state.player.defDown) {
-			SetTextColor(hdc, RGB(33, 33, 33));
-			wsprintf(tempBuffer, L"-%d", state.defensedown);
-			TextOut(hdc, 620, 18, tempBuffer, lstrlen(tempBuffer));
-		}
-
-		// Attack
-		SetTextColor(hdc, RGB(255, 33, 0));
-		wsprintf(tempBuffer, L"%d", state.player.attack);
-		TextOut(hdc, 700, 25, tempBuffer, lstrlen(tempBuffer));
-
-		if (state.player.powerUp) {
-			SetTextColor(hdc, RGB(33, 33, 33));
-			wsprintf(tempBuffer, L"+%d", state.plusattack);
-			TextOut(hdc, 740, 18, tempBuffer, lstrlen(tempBuffer));
-		}
-		if (state.player.powerDown) {
-			SetTextColor(hdc, RGB(33, 33, 33));
-			wsprintf(tempBuffer, L"-%d", state.minusattack);
-			TextOut(hdc, 740, 18, tempBuffer, lstrlen(tempBuffer));
-		}
-		SelectObject(hdc, hOldFont);
-		DeleteObject(hFont);
-
-		hBrush = CreateSolidBrush(RGB(0, 174, 251));
-		oldBrush = (HBRUSH)SelectObject(hdc, hBrush);
-		POINT point[5] = { {100,550}, {100 - 60,550 + 50}, {100 - 60 + 20,550 + 40 + 90}, {100 + 60 - 20, 550 + 40 + 90}, {100 + 60, 550 + 50} };
-		Polygon(hdc, point, 5);
-		SelectObject(hdc, oldBrush);
-		DeleteObject(hBrush);
-
-		hFont = CreateFont(40, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Arial");
-		hOldFont = (HFONT)SelectObject(hdc, hFont);
-		SetBkMode(hdc, TRANSPARENT);
-		SetTextColor(hdc, RGB(33, 33, 33));
-
-		wsprintf(tempBuffer, L"%d / %d", state.player.mana, state.player.maxMana);
-		TextOut(hdc, 65, 600, tempBuffer, lstrlen(tempBuffer));
-
-		if (state.player.manaUp) {
-			SetTextColor(hdc, RGB(150, 150, 150));
-			wsprintf(tempBuffer, L"+%d", state.healmana);
-			TextOut(hdc, 145, 580, tempBuffer, lstrlen(tempBuffer));
-		}
-		if (state.player.manaDown) {
-			SetTextColor(hdc, RGB(150, 150, 150));
-			wsprintf(tempBuffer, L"-%d", state.killmana);
-			TextOut(hdc, 145, 610, tempBuffer, lstrlen(tempBuffer));
-		}
-		SelectObject(hdc, hOldFont);
-		DeleteObject(hFont);
-
-		if (!state.enemy.death) {
-			HPBar(hdc, state.enemy.x + 75, state.enemy.y - 30, state.enemy.hp);
+			hBrush = CreateSolidBrush(RGB(0, 174, 251));
+			oldBrush = (HBRUSH)SelectObject(hdc, hBrush);
+			POINT point[5] = { {100,550}, {100 - 60,550 + 50}, {100 - 60 + 20,550 + 40 + 90}, {100 + 60 - 20, 550 + 40 + 90}, {100 + 60, 550 + 50} };
+			Polygon(hdc, point, 5);
+			SelectObject(hdc, oldBrush);
+			DeleteObject(hBrush);
 
 			hFont = CreateFont(40, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Arial");
 			hOldFont = (HFONT)SelectObject(hdc, hFont);
 			SetBkMode(hdc, TRANSPARENT);
-			SetTextColor(hdc, RGB(0, 33, 255));
-			wsprintf(tempBuffer, L"%d", state.enemy.defence);
-			TextOut(hdc, state.enemy.x + 75, state.enemy.y - 95, tempBuffer, lstrlen(tempBuffer));
+			SetTextColor(hdc, RGB(33, 33, 33));
 
-			if (state.enemy.defUp) {
-				SetTextColor(hdc, RGB(150, 133, 133));
-				wsprintf(tempBuffer, L"+%d", state.enermydeff);
-				TextOut(hdc, state.enemy.x + 115, state.enemy.y - 102, tempBuffer, lstrlen(tempBuffer));
+			wsprintf(tempBuffer, L"%d / %d", state.player.mana, state.player.maxMana);
+			TextOut(hdc, 65, 600, tempBuffer, lstrlen(tempBuffer));
+
+			if (state.player.manaUp) {
+				SetTextColor(hdc, RGB(150, 150, 150));
+				wsprintf(tempBuffer, L"+%d", state.healmana);
+				TextOut(hdc, 145, 580, tempBuffer, lstrlen(tempBuffer));
 			}
-			if (state.enemy.defDown) {
-				SetTextColor(hdc, RGB(150, 133, 133));
-				wsprintf(tempBuffer, L"-%d", state.enermydeffdown);
-				TextOut(hdc, state.enemy.x + 115, state.enemy.y - 110, tempBuffer, lstrlen(tempBuffer));
-			}
-			// 적 HP 효과 (데미지/힐 텍스트)
-			if (state.dehp) {
-				SetTextColor(hdc, RGB(200, 33, 33));
-				wsprintf(tempBuffer, L"-%d", state.damage);
-				TextOut(hdc, state.enemy.x + 115, state.enemy.y - 100, tempBuffer, lstrlen(tempBuffer));
-			}
-			if (state.enemy.heal) {
-				SetTextColor(hdc, RGB(33, 200, 33));
-				wsprintf(tempBuffer, L"+%d", state.enemy.healEnergy);
-				TextOut(hdc, state.enemy.x + 115, state.enemy.y - 100, tempBuffer, lstrlen(tempBuffer));
+			if (state.player.manaDown) {
+				SetTextColor(hdc, RGB(150, 150, 150));
+				wsprintf(tempBuffer, L"-%d", state.killmana);
+				TextOut(hdc, 145, 610, tempBuffer, lstrlen(tempBuffer));
 			}
 			SelectObject(hdc, hOldFont);
 			DeleteObject(hFont);
-
-			if (state.enermytouch) {
-				hPen = CreatePen(PS_SOLID, 3, RGB(255, 0, 0));
-				oldPen = (HPEN)SelectObject(hdc, hPen);
-				HBRUSH myBrush = (HBRUSH)GetStockObject(NULL_BRUSH);
-				HBRUSH oldBrush = (HBRUSH)SelectObject(hdc, myBrush);
-				Rectangle(hdc, state.enemy.x - 70, state.enemy.y - 60, state.enemy.x + 70, state.enemy.y + 60);
-				SelectObject(hdc, oldBrush);
-				SelectObject(hdc, oldPen);
-				DeleteObject(hPen);
-			}
 		}
 	}
 }
@@ -2240,10 +2200,10 @@ void Renderer::DrawCharacters(HDC hdc, HDC imgDC, const GameState& state, const 
 	}
 
 	// 적
-	if (!state.enemy.death) {
+	if (!state.enemy.death && state.boss == true) {
 		if (state.bossId == 0) { // 슬라임 보스
 			SelectObject(imgDC, assets.Enermy1[state.enemy.animCount % 3]);
-			TransparentBlt(hdc, state.enemy.x, state.enemy.y, 150, 100, imgDC, 0, 0, assets.enermy1Width, assets.enermy1Height, RGB(100, 100, 100));
+			TransparentBlt(hdc, state.enemy.x, state.enemy.y, 300, 200, imgDC, 0, 0, assets.enermy1Width, assets.enermy1Height, RGB(100, 100, 100));
 		}
 		else if (state.bossId == 1) { // 기사 보스
 			SelectObject(imgDC, assets.Enermy2[state.enemy.animCount % 3]);
