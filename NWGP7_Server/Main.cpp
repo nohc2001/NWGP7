@@ -44,12 +44,21 @@ DWORD WINAPI ProcessClient(LPVOID arg)
 	char addr[INET_ADDRSTRLEN];
 	int addrlen;
 
+	char buff[BUFSIZE] = {};
+
 	addrlen = sizeof(clientaddr);
 	getpeername(client_sock, (struct sockaddr*)&clientaddr, &addrlen);
 	inet_ntop(AF_INET, &clientaddr.sin_addr, addr, sizeof(addr));
 
 	while (1) {
-
+		int recv_siz = recv(client_sock, buff, BUFSIZE, 0);
+		if (recv_siz > 0) {
+			printf(buff);
+		}
+		else {
+			break;
+		}
+		Sleep(100);
 	}
 
 	closesocket(client_sock);
@@ -110,4 +119,5 @@ int main(int argc, char* argv[])
 		}
 	}
 
+	WSACleanup();
 }

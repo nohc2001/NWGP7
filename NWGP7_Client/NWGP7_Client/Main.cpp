@@ -1,11 +1,50 @@
+
+#include <stdio.h>
+#include <iostream>
+#define _CRT_SECURE_NO_WARNINGS
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #pragma comment (lib, "msimg32.lib")
 #pragma comment(lib, "winmm.lib")
+#pragma comment(lib, "ws2_32.lib")
+
 #include <Windows.h>
 #include <tchar.h>
 #include <ctime>
 #include <math.h>
 #include "resource.h"
 #include <mmsystem.h>
+
+#define SERVERPORT 9000
+#define BUFSIZE    512
+
+using namespace std;
+
+void err_quit(const char* msg)
+{
+	LPVOID lpMsgBuf;
+	FormatMessageA(
+		FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
+		NULL, WSAGetLastError(),
+		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+		(char*)&lpMsgBuf, 0, NULL);
+	MessageBoxA(NULL, (const char*)lpMsgBuf, msg, MB_ICONERROR);
+	LocalFree(lpMsgBuf);
+	exit(1);
+}
+
+void err_display(const char* msg)
+{
+	LPVOID lpMsgBuf;
+	FormatMessageA(
+		FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM,
+		NULL, WSAGetLastError(),
+		MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+		(char*)&lpMsgBuf, 0, 0);
+	printf("[%s] %s\n", msg, (char*)lpMsgBuf);
+	LocalFree(lpMsgBuf);
+}
 
 HINSTANCE g_hInst;
 LPCTSTR lpszClass = L"Window Class Name";
@@ -135,7 +174,6 @@ struct Player {
 	int onepunchingcount = 0;
 	int onepunchingcounttime = 0;
 };
-
 
 class GameState {
 public:
@@ -684,8 +722,36 @@ private:
 	Renderer Renderer;
 };
 
+SOCKET sock;
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdParam, int nCmdShow)
 {
+	char* SERVERIP = (char*)"127.0.0.1";
+	int retval;
+
+	WSADATA wsa;
+	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
+		return 1;
+	}
+
+	sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (sock == INVALID_SOCKET) {
+		cout << "소켓 생성에 실패했습니다." << endl;
+		return 0;
+	}
+
+	struct sockaddr_in serveraddr;
+	memset(&serveraddr, 0, sizeof(serveraddr));
+	serveraddr.sin_family = AF_INET;
+	inet_pton(AF_INET, SERVERIP, &serveraddr.sin_addr);
+	serveraddr.sin_port = htons(SERVERPORT);
+	retval = connect(sock, (struct sockaddr*)&serveraddr, sizeof(serveraddr));
+	if (retval == SOCKET_ERROR) {
+		cout << "서버 접속에 실패했습니다." << endl;
+	}
+	else {
+		int n = send(sock, "client connect!", 17, 0);
+	}
+
 	HWND hWnd;
 	MSG Message;
 	WNDCLASSEX WndClass;
@@ -714,8 +780,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 		DispatchMessage(&Message);
 	}
 
-	return Message.wParam;
+	WSACleanup();
 
+	return Message.wParam;
 }
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
