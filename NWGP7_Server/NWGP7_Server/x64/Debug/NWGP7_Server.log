@@ -1,0 +1,3 @@
+﻿  Main.cpp
+C:\Users\dong0\Desktop\네트워크프로그래밍\NWGP7\NWGP7_Server\Main.cpp(40,6): warning C4101: 'retval' :참조되지 않은 지역 변수입니다.
+  NWGP7_Server.vcxproj -> C:\Users\dong0\Desktop\네트워크프로그래밍\NWGP7\NWGP7_Server\x64\Debug\NWGP7_Server.exe
