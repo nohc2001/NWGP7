@@ -75,6 +75,9 @@ struct Boss {
 	int boss_statck = 0;
 	bool nodamageMode = false; // 보스 무적 모드
 
+	int attackState = 0; // 0: 아무것도 아님 1: 경고 2: 데미지공격
+	float currentStateDuration = 3.0f; // 현재 상태 몇초 지속
+
 	int animCount = 0; 
 	float attackTime = 0; 
 	int healTime = 0; 
@@ -225,10 +228,6 @@ public:
 	// 격자 맵 데이터 및 보스 공격 표시
 	static const int GRID_SIZE = 5;       // 고정된 5x5 격자
 	int mapData[GRID_SIZE][GRID_SIZE] = { 0 };  // 0=빈칸, 1=이동가능, 2=보스공격
-	bool bossAttackActive = false;        // 공격 표시 중인지 여부
-	int bossAttackTimer = 0;              // 공격 타이머
-	int bossAttackDuration = 10;          // 공격 표시 유지 프레임 (1초 정도)
-	float BosswarningTimer = 0.0f;        // 공격 경고 타이머
 
 	int lastAttackx = 0;
 	int lastAttacky = 0;
@@ -663,7 +662,7 @@ private:
 
 	void CheckWinLossConditions(GameState& state);
 
-	void AttackWarning(GameState& state, float deltaTime);
+	void AttackWarning(GameState& state);
 	void AttackOnRandomGreed(GameState& state, int damage);
 	void MapStateRepare(GameState& state);
 
@@ -1193,41 +1192,31 @@ void GameLogic::CheckWinLossConditions(GameState& state)
 	}
 }
 
-void GameLogic::AttackWarning(GameState& state, float deltaTime)
+void GameLogic::AttackWarning(GameState& state)
 {
-	state.BosswarningTimer += deltaTime;
-	if (state.BosswarningTimer >= 0.0f) {
-		for (int i = 0; i < GameState::GRID_SIZE; i++) {
-			for (int j = 0; j < GameState::GRID_SIZE; j++) {
-			state.mapData[i][j] = 3;
-		   }
-		}
-	}
-	if (state.BosswarningTimer < 5.0f && state.BosswarningTimer >= 3.0f) {
-		for (int i = 0; i < GameState::GRID_SIZE; i++) {
-			for (int j = 0; j < GameState::GRID_SIZE; j++) {
-				if (state.mapData[i][j] == 3) {
-					state.mapData[i][j] = 0; // 4 = 경고
-				}
-			}
-		}
+	MapStateRepare(state);
+
+	int count = 3;
+	for (int i = 0; i < count; ++i) {
+		int rx = rand() % GameState::GRID_SIZE;
+		int ry = rand() % GameState::GRID_SIZE;
+
+		state.mapData[ry][rx] = 3; // 3 경고
 	}
 }
 
 void GameLogic::AttackOnRandomGreed(GameState& state, int damage)
 {
-	int rx = rand() % GameState::GRID_SIZE;
-	int ry = rand() % GameState::GRID_SIZE;
-
-
-	state.lastAttackx = rx;
-	state.lastAttacky = ry;
-
-	// 공격 지점 설정
-	state.mapData[ry][rx] = 2; //2 = 공격이라는 뜻
-	state.bossAttackTimer = 0;
-	
-	ApplyDamageToPlayer(state, rx, ry, damage, 0); // 데미지 15
+	for (int i = 0; i < GameState::GRID_SIZE; ++i) {
+		for (int j = 0; j < GameState::GRID_SIZE; ++j) {
+			if (state.mapData[i][j] == 3) {
+				state.mapData[i][j] = 2;
+				state.lastAttackx = j;
+				state.lastAttacky = i;
+				ApplyDamageToPlayer(state, j, i, damage, 0); // 데미지
+			}
+		}
+	}
 }
 
 void GameLogic::MapStateRepare(GameState& state)
@@ -1243,11 +1232,21 @@ void GameLogic::ExecuteEnemyAI(GameState& state, float deltaTime)
 {
 	// 스테이지 1 슬라임 패턴
 	if (state.boss.id == 0) { // 데미지 0~5
-		//경고
-		AttackWarning(state, deltaTime);
-		AttackOnRandomGreed(state, 5);
-		MapStateRepare(state);
-		//복구
+		if (state.boss.attackState == 0) {
+			state.boss.attackState = 1;
+			state.boss.currentStateDuration = 3.0f; // 경고 3초간
+			AttackWarning(state);
+		}
+		else if (state.boss.attackState == 1) {
+			state.boss.attackState = 2;
+			state.boss.currentStateDuration = 1.0f; // 1초간 장판 공격
+			AttackOnRandomGreed(state, 5);
+		}
+		else if (state.boss.attackState == 2) {
+			state.boss.attackState = 0;
+			state.boss.currentStateDuration = 3.0f;
+			MapStateRepare(state);
+		}
 	}
 	// 스테이지 2-1 기사 50% 공격 50% 방어
 	else if (state.boss.id == 1) { // 데미지 10 / 방어 10
@@ -1405,7 +1404,7 @@ void GameLogic::UpdateBattle_RealTime(GameState& state, float deltaTime)
 		if (!state.dehp) {
 			state.boss.attackTime += deltaTime;
 		}
-		constexpr float bossAttackDelay = 5;
+		constexpr float bossAttackDelay = 3;
 		if (state.boss.attackTime > bossAttackDelay && !state.boss.death) { // 턴 시작
 			state.boss.attackTime = 0;
 			state.droww = true; // 카드 드로우
