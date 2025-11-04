@@ -12,6 +12,7 @@
 #include <tchar.h>
 #include <ctime>
 #include <math.h>
+#include <list>
 #include "resource.h"
 #include <mmsystem.h>
 
@@ -78,21 +79,31 @@ struct Boss {
 	int attackState = 0; // 0: 아무것도 아님 1: 경고 2: 데미지공격
 	float currentStateDuration = 3.0f; // 현재 상태 몇초 지속
 
-	int animCount = 0; 
-	float attackTime = 0; 
-	int healTime = 0; 
-	int defUpTime = 0; 
-	int defDownTime = 0; 
-	int healEnergy = 0; 
-	bool defUp = false; 
-	bool defDown = false; 
-	bool heal = false; 
+	int animCount = 0;
+	float attackTime = 0;
+	int healTime = 0;
+	int defUpTime = 0;
+	int defDownTime = 0;
+	int healEnergy = 0;
+	bool defUp = false;
+	bool defDown = false;
+	bool heal = false;
 	int DamageStack = 0;
 };
 
 struct Pos {
 	int x;
 	int y;
+
+	Pos() {
+
+	}
+
+	Pos(int X, int Y) :
+		x{ X }, y{ Y }
+	{
+
+	}
 };
 
 struct InputData {
@@ -182,6 +193,66 @@ struct Player {
 
 	int onepunchingcount = 0;
 	int onepunchingcounttime = 0;
+
+	bool ParingMoment = false;
+};
+
+class GameState;
+
+struct ThrowCard {
+	static constexpr int monsterPos = -2147483648;
+	static constexpr int playerPos[3] = { -2147483647, -2147483646, -2147483645 };
+	Pos start_p; // -max, -max : monster position.
+	float maxTime;
+	float flowTime;
+	Pos end_p; // -max, -max : monster position.
+	//Pos GetStartPos(GameState* state) {
+	//	Pos p = start_p;
+	//	if (start_p.x == monsterPos || start_p.y == monsterPos) {
+	//		p.x = state->boss.x;
+	//		p.y = state->boss.y;
+	//	}
+	//	return p;
+	//}
+	//Pos GetEndPos(GameState* state) {
+	//	Pos p = end_p;
+	//	if (end_p.x == monsterPos || end_p.y == monsterPos) {
+	//		p.x = state->boss.x;
+	//		p.y = state->boss.y;
+	//	}
+	//	return p;
+	//}
+
+	int cardID = 0;
+
+	void Update(float deltaTime) {
+		flowTime += deltaTime;
+	}
+
+	ThrowCard() {
+
+	}
+
+	ThrowCard(Pos sp, Pos ep, float maxtime) :
+		start_p{ sp }, end_p{ ep }, maxTime{ maxtime }, flowTime{ 0 }
+	{
+	}
+
+	static ThrowCard CreateMonsterToPlayer_ThrowCard(Player& p, float maxTime) {
+		return ThrowCard(Pos(monsterPos, monsterPos), Pos(p.x, p.y), maxTime);
+	}
+
+	static ThrowCard CreatePlayerToMonster_ThrowCard(Player& p, float maxTime) {
+		return ThrowCard(Pos(p.x, p.y), Pos(monsterPos, monsterPos), maxTime);
+	}
+
+	static ThrowCard CreatePlayerToPlayer_ThrowCard(Player& p1, Player& p2, float maxTime) {
+		return ThrowCard(Pos(p1.x, p1.y), Pos(p2.x, p2.y), maxTime);
+	}
+
+	static ThrowCard CreateFollowCard(Pos startp, int fpos, float maxTime) {
+		return ThrowCard(startp, Pos(fpos, fpos), maxTime);
+	}
 };
 
 class GameState {
@@ -238,6 +309,12 @@ public:
 	TCHAR enerdf[3], enerdfdown[3], mad[3], mau[3];
 
 	float animTimer = 0;
+
+	// ThrowCard
+	list<ThrowCard> throwCardList;
+	void CardUpdate(float deltaTime);
+	void RenderThrowingCards(HDC hdc) const;
+	void CardThrow(ThrowCard tc);
 };
 
 template<size_t N>
@@ -645,6 +722,7 @@ public:
 	}
 };
 
+//??
 class GameLogic {
 public:
 	void Initialize(GameState& state);
@@ -656,7 +734,6 @@ public:
 	void HandleLButtonDown(GameState& state, int x, int y, HWND hWnd);
 	void HandleLButtonUp(GameState& state, int x, int y);
 
-private:
 	void UpdatePvE(GameState& state, float deltaTime);
 	void UpdatePvP(GameState& state, float deltaTime);
 
@@ -673,7 +750,7 @@ private:
 
 	void StartBattle(GameState& state); // 맵에서 전투 시작
 	void PlayCard(GameState& state, int cardIndex, int playerindex = 0); // 카드 사용
-
+	void PlayCardLogic(GameState& state, int cardID, int playerindex = 0, bool usedByMonster = false); // 카드 사용
 
 	void ApplyDamageToPlayer(GameState& state, int rx, int ry, int damage, int playerindex = 0);
 	void ApplyDefenseToEnemy(GameState& state, int defense);
@@ -710,7 +787,7 @@ public:
 	void OnLButtonUp(int x, int y);
 	void OnKeyDown(WPARAM wParam);
 	void OnKeyUp(WPARAM wParam);
-private:
+
 	HWND m_hWnd;
 	AssetManager m_Assets;  // 자원 관리
 	GameState m_State;    // 모든 데이터
@@ -812,7 +889,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	case WM_PAINT: // 모든 그리기는 여기서
 		GetClientRect(hWnd, &rt);
 		hDC = BeginPaint(hWnd, &ps);
-		g_Game.OnPaint(hDC, ps, rt); 
+		g_Game.OnPaint(hDC, ps, rt);
 		EndPaint(hWnd, &ps);
 		break;
 
@@ -849,7 +926,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 void Game::OnCreate(HWND hWnd, HINSTANCE hInst)
 {
-	m_hWnd = hWnd; 
+	m_hWnd = hWnd;
 
 	HDC hDC = GetDC(hWnd);
 	RECT rectView;
@@ -926,6 +1003,7 @@ void Game::OnKeyDown(WPARAM wParam)
 	}
 	else if (wParam == VK_SPACE && inputdata.SpacePress == false) {
 		inputdata.SpacePress = true;
+		m_State.player->ParingMoment = true;
 	}
 }
 
@@ -1201,19 +1279,30 @@ void GameLogic::AttackWarning(GameState& state)
 		int rx = rand() % GameState::GRID_SIZE;
 		int ry = rand() % GameState::GRID_SIZE;
 
-		state.mapData[ry][rx] = 3; // 3 경고
+		state.mapData[ry][rx] = 3; // please enum
 	}
 }
 
 void GameLogic::AttackOnRandomGreed(GameState& state, int damage)
 {
+	int rx = rand() % GameState::GRID_SIZE;
+	int ry = rand() % GameState::GRID_SIZE;
+
+
+	state.lastAttackx = rx;
+	state.lastAttacky = ry;
+
+	// 공격 지점 설정
+	state.mapData[ry][rx] = 2; //2 = 공격이라는 뜻 // please enum
+	//state.bossAttackTimer = 0;
+
 	for (int i = 0; i < GameState::GRID_SIZE; ++i) {
 		for (int j = 0; j < GameState::GRID_SIZE; ++j) {
 			if (state.mapData[i][j] == 3) {
 				state.mapData[i][j] = 2;
 				state.lastAttackx = j;
 				state.lastAttacky = i;
-				ApplyDamageToPlayer(state, j, i, damage, 0); // 데미지
+				ApplyDamageToPlayer(state, j, i, damage, 0); // 데미지 15
 			}
 		}
 	}
@@ -1234,17 +1323,17 @@ void GameLogic::ExecuteEnemyAI(GameState& state, float deltaTime)
 	if (state.boss.id == 0) { // 데미지 0~5
 		if (state.boss.attackState == 0) {
 			state.boss.attackState = 1;
-			state.boss.currentStateDuration = 3.0f; // 경고 3초간
+			state.boss.currentStateDuration = 3.0f; //경고
 			AttackWarning(state);
 		}
 		else if (state.boss.attackState == 1) {
 			state.boss.attackState = 2;
-			state.boss.currentStateDuration = 1.0f; // 1초간 장판 공격
+			state.boss.currentStateDuration = 1.0f; //공격
 			AttackOnRandomGreed(state, 5);
 		}
 		else if (state.boss.attackState == 2) {
 			state.boss.attackState = 0;
-			state.boss.currentStateDuration = 3.0f;
+			state.boss.currentStateDuration = 3.0f; // 복구
 			MapStateRepare(state);
 		}
 	}
@@ -1345,6 +1434,8 @@ void GameLogic::ExecuteEnemyAI(GameState& state, float deltaTime)
 
 void GameLogic::UpdateBattle_RealTime(GameState& state, float deltaTime)
 {
+	state.CardUpdate(deltaTime);
+
 	//player Update
 	for (int i = 0; i < GameState::playerCount; ++i) {
 		Player& p = state.players[i];
@@ -1519,7 +1610,7 @@ void GameLogic::UpdateBuffsAndTimers(GameState& state, float deltaTime)
 	}
 
 	if (state.pdeath) { // 게임 오버 자막
-		
+
 		state.GameClear = true;
 		state.StartScreen = true;
 		/*
@@ -1826,6 +1917,8 @@ void GameLogic::PlayCard(GameState& state, int i, int playerindex) {
 	Player& player = state.players[playerindex];
 	Card& card = player.hand[i];
 
+	constexpr float cardThrowMaxtime = 0.75f;
+
 	if (!state.enermytouch || state.dontattackcard) {
 		if (i == 0) { card.x = 300; card.y = 700; }
 		else if (i == 1) { card.x = 450; card.y = 700; }
@@ -1836,206 +1929,121 @@ void GameLogic::PlayCard(GameState& state, int i, int playerindex) {
 		return;
 	}
 
+	bool isused = false;
+	int manaCost = 0;
 	// Card ID 0: 심장 뽑기 (Cost 2, Attack 70, Heal 10, Attack resets)
 	if (card.id == 0 && player.mana >= 2) {
-		player.attackTime = 1;
-		state.quake = true;
-		if (player.attack == 0) state.damage = 70;
-		else {
-			state.minusattack = player.attack;
-			state.damage = player.attack + 70;
-			player.attack = 0;
-			player.effect_anim_data.powerDown = true;
-			player.effect_anim_data.powerDownTime = 0;
-		}
-		player.mana -= 2;
-		state.killmana = 2;
-		player.effect_anim_data.manaDown = true;
-		player.effect_anim_data.manaDownTime = 0;
-		state.healenergy = 10;
-		player.effect_anim_data.myheal = true;
-		state.dehp = true;
-		if (player.hp < 90) player.hp += 10;
-		else player.hp = 100;
-		card.on = false;
-		card.id = rand() % 15;
-		state.sword = true;
-		state.boss.DamageStack += state.damage;
+		ThrowCard tc = ThrowCard(Pos(state.player->x, state.player->y), Pos(ThrowCard::monsterPos, ThrowCard::monsterPos), cardThrowMaxtime);
+		tc.cardID = state.player->hand[i].id;
+		state.CardThrow(tc);
+		manaCost = 2;
+		isused = true;
+		//PlayCardLogic(state, card.id, playerindex);
 	}
 	// Card ID 1: 심판 (Cost 3, Attack 90, Attack resets)
 	else if (card.id == 1 && player.mana >= 3) {
-		player.attackTime = 1; state.quake = true;
-		if (player.attack == 0) state.damage = 90;
-		else {
-			state.minusattack = player.attack;
-			state.damage = player.attack + 90;
-			player.attack = 0;
-			player.effect_anim_data.powerDown = true;
-			player.effect_anim_data.powerDownTime = 0;
-		}
-		player.mana -= 3; state.killmana = 3; player.effect_anim_data.manaDown = true; player.effect_anim_data.manaDownTime = 0;
-		state.dehp = true;
-		card.on = false; card.id = rand() % 15; state.sword = true;
-		state.boss.DamageStack += state.damage;
+		ThrowCard tc = ThrowCard(Pos(state.player->x, state.player->y), Pos(ThrowCard::monsterPos, ThrowCard::monsterPos), cardThrowMaxtime);
+		tc.cardID = state.player->hand[i].id;
+		state.CardThrow(tc);
+		manaCost = 3;
+		isused = true;
+		//PlayCardLogic(state, card.id, playerindex);
 	}
 	// Card ID 2: 강타 (Cost 2, Attack 60, Attack resets)
 	else if (card.id == 2 && player.mana >= 2) {
-		player.attackTime = 1; state.quake = true;
-		player.mana -= 2; state.killmana = 2; player.effect_anim_data.manaDown = true; player.effect_anim_data.manaDownTime = 0;
-		if (player.attack == 0) state.damage = 60;
-		else {
-			state.minusattack = player.attack; state.damage = player.attack + 60; player.attack = 0; player.effect_anim_data.powerDown = true; player.effect_anim_data.powerDownTime = 0;
-		}
-		state.dehp = true;
-		card.on = false; card.id = rand() % 15; state.sword = true;
-		state.boss.DamageStack += state.damage;
+		ThrowCard tc = ThrowCard(Pos(state.player->x, state.player->y), Pos(ThrowCard::monsterPos, ThrowCard::monsterPos), cardThrowMaxtime);
+		tc.cardID = state.player->hand[i].id;
+		state.CardThrow(tc);
+		manaCost = 2;
+		isused = true;
+		//PlayCardLogic(state, card.id, playerindex);
 	}
 	// Card ID 3: 자세잡기 (Cost 1, Defense +3, Mana +1)
 	else if (card.id == 3 && player.mana >= 1) {
-		player.mana -= 1;
-		state.killmana = 1; player.effect_anim_data.manaDown = true; player.effect_anim_data.manaDownTime = 0;
-		player.mana += 1.0f;
-		state.healmana = 1;
-		player.effect_anim_data.manaUp = true;
-		player.effect_anim_data.manaUpTime = 0;
-		player.effect_anim_data.defUp = true;
-		player.effect_anim_data.defUpTime = 0;
-		state.defenseup = 3;
-		player.defence += 3;
-		card.on = false; card.id = rand() % 15; player.effect_anim_data.tekai = true;
-		state.boss.DamageStack += state.damage;
+		PlayCardLogic(state, card.id, playerindex);
+		manaCost = 3;
+		isused = true;
 	}
 	// Card ID 4: 돌진 (Cost 2, Attack 40, Defense +10, Attack resets)
 	else if (card.id == 4 && player.mana >= 2) {
-		player.attackTime = 1; state.quake = true;
-		player.mana -= 2.0f; state.killmana = 2; player.effect_anim_data.manaDown = true; player.effect_anim_data.manaDownTime = 0;
-		if (player.attack == 0) state.damage = 40;
-		else {
-			state.minusattack = player.attack;
-			state.damage = player.attack + 40;
-			player.attack = 0;
-			player.effect_anim_data.powerDown = true;
-			player.effect_anim_data.powerDownTime = 0;
-		}
-		state.dehp = true;
-		player.effect_anim_data.defUp = true;
-		player.effect_anim_data.defUpTime = 0;
-		state.defenseup = 10;
-		player.defence += 10;
-		card.on = false; card.id = rand() % 15; state.sword = true;
-		state.boss.DamageStack += state.damage;
+		ThrowCard tc = ThrowCard(Pos(state.player->x, state.player->y), Pos(ThrowCard::monsterPos, ThrowCard::monsterPos), cardThrowMaxtime);
+		tc.cardID = state.player->hand[i].id;
+		state.CardThrow(tc);
+		manaCost = 2;
+		isused = true;
+		//PlayCardLogic(state, card.id, playerindex);
 	}
 	// Card ID 5: 대검휘두르기 (Cost 1, Attack 50, Attack resets)
 	else if (card.id == 5 && player.mana >= 1) {
-		player.attackTime = 1; state.quake = true;
-		player.mana -= 1.0f; state.killmana = 1;
-		player.effect_anim_data.manaDown = true;
-		player.effect_anim_data.manaDownTime = 0;
-		if (player.attack == 0) state.damage = 50;
-		else {
-			state.minusattack = player.attack;
-			state.damage = player.attack + 50;
-			player.attack = 0;
-			player.effect_anim_data.powerDown = true;
-			player.effect_anim_data.powerDownTime = 0;
-		}
-		state.dehp = true;
-		card.on = false; card.id = rand() % 15; state.sword = true;
-		state.boss.DamageStack += state.damage;
+		ThrowCard tc = ThrowCard(Pos(state.player->x, state.player->y), Pos(ThrowCard::monsterPos, ThrowCard::monsterPos), cardThrowMaxtime);
+		tc.cardID = state.player->hand[i].id;
+		state.CardThrow(tc);
+		manaCost = 1;
+		isused = true;
+		//PlayCardLogic(state, card.id, playerindex);
 	}
 	// Card ID 6: 바리게이트 (Cost 2, Defense x2)
 	else if (card.id == 6 && player.mana >= 2) {
-		player.mana -= 2.0f;
-		state.killmana = 2;
-		player.effect_anim_data.manaDown = true;
-		player.effect_anim_data.manaDownTime = 0;
-		player.effect_anim_data.defUp = true;
-		player.effect_anim_data.defUpTime = 0;
-		state.defenseup = player.defence;
-		player.defence *= 2;
-		card.on = false;
-		card.id = rand() % 15;
-		player.effect_anim_data.tekai = true;
-		state.boss.DamageStack += state.damage;
+		PlayCardLogic(state, card.id, playerindex);
+		manaCost = 2;
+		isused = true;
 	}
 	// Card ID 7: 방패 밀쳐내기 (Cost 1, Attack = Defense, Attack resets)
 	else if (card.id == 7 && player.mana >= 1) {
-		player.mana -= 1.0f; state.killmana = 1; player.effect_anim_data.manaDown = true; player.effect_anim_data.manaDownTime = 0;
-		player.attackTime = 1; state.quake = true;
-		if (player.attack == 0) state.damage = player.defence;
-		else {
-			state.minusattack = player.attack; state.damage = player.attack + player.defence; player.attack = 0; player.effect_anim_data.powerDown = true; player.effect_anim_data.powerDownTime = 0;
-		}
-		state.dehp = true;
-		card.on = false; card.id = rand() % 15; state.sword = true;
-		state.boss.DamageStack += state.damage;
+		PlayCardLogic(state, card.id, playerindex);
+		manaCost = 1;
+		isused = true;
 	}
 	// Card ID 8: 굳건한 태세 (Cost 2, Block next attack)
 	else if (card.id == 8 && player.mana >= 2) {
-		player.mana -= 2.0f; state.killmana = 2; player.effect_anim_data.manaDown = true; player.effect_anim_data.manaDownTime = 0;
-		player.effect_anim_data.holiShild = true;
-		card.on = false; card.id = rand() % 15;
+		PlayCardLogic(state, card.id, playerindex);
+		manaCost = 2;
+		isused = true;
 	}
 	// Card ID 9: 방패 세우기 (Cost 1, Defense +5)
 	else if (card.id == 9 && player.mana >= 1) {
-		player.mana -= 1.0f; state.killmana = 1; player.effect_anim_data.manaDown = true; player.effect_anim_data.manaDownTime = 0;
-		player.effect_anim_data.defUp = true; player.effect_anim_data.defUpTime = 0; state.defenseup = 5; player.defence += 5;
-		card.on = false; card.id = rand() % 15; player.effect_anim_data.tekai = true;
+		PlayCardLogic(state, card.id, playerindex);
+		manaCost = 1;
+		isused = true;
 	}
 	// Card ID 10: 절단 (Cost 2, Attack 40 (ignores defense), Attack resets)
 	else if (card.id == 10 && player.mana >= 2) {
-		player.mana -= 2.0f; state.killmana = 2; player.effect_anim_data.manaDown = true; player.effect_anim_data.manaDownTime = 0;
-		player.attackTime = 1; state.quake = true;
-		if (player.attack == 0) state.damage = 40;
-		else {
-			state.minusattack = player.attack; state.damage = player.attack + 40; player.attack = 0; player.effect_anim_data.powerDown = true; player.effect_anim_data.powerDownTime = 0;
-		}
-		state.dehp = true;
-		player.cutting = true;
-		card.on = false; card.id = rand() % 15; state.sword = true;
-		state.boss.DamageStack += state.damage;
+		ThrowCard tc = ThrowCard(Pos(state.player->x, state.player->y), Pos(ThrowCard::monsterPos, ThrowCard::monsterPos), cardThrowMaxtime);
+		tc.cardID = state.player->hand[i].id;
+		state.CardThrow(tc);
+		manaCost = 2;
+		isused = true;
+		//PlayCardLogic(state, card.id, playerindex);
 	}
 	// Card ID 11: 일격 (Cost 3, Attack 140 next turn, Attack resets)
 	else if (card.id == 11 && player.mana >= 3) {
-		player.mana -= 3.0f; state.killmana = 3; player.effect_anim_data.manaDown = true; player.effect_anim_data.manaDownTime = 0;
-		if (player.attack == 0) state.damage = 140;
-		else {
-			state.minusattack = player.attack; state.damage = player.attack + 140; player.attack = 0; player.effect_anim_data.powerDown = true; player.effect_anim_data.powerDownTime = 0;
-		}
-		player.onepunching = true;
-		player.onepunchingcount = 0;
-		player.onepunchingcounttime = 0;
-		card.on = false; card.id = rand() % 15;
-		state.boss.DamageStack += state.damage;
+		ThrowCard tc = ThrowCard(Pos(state.player->x, state.player->y), Pos(ThrowCard::monsterPos, ThrowCard::monsterPos), cardThrowMaxtime);
+		tc.cardID = state.player->hand[i].id;
+		state.CardThrow(tc);
+		manaCost = 3;
+		isused = true;
+		//PlayCardLogic(state, card.id, playerindex);
 	}
 	// Card ID 12: 고속 이동 (Cost 2, Defense +5, Mana +1)
 	else if (card.id == 12 && player.mana >= 2) {
-		player.mana -= 2.0f; state.killmana = 2; player.effect_anim_data.manaDown = true; player.effect_anim_data.manaDownTime = 0;
-		player.mana += 1.0f; state.healmana = 1; player.effect_anim_data.manaUp = true; player.effect_anim_data.manaUpTime = 0;
-		player.effect_anim_data.defUp = true; player.effect_anim_data.defUpTime = 0; state.defenseup = 5; player.defence += 5;
-		card.on = false; card.id = rand() % 15; player.effect_anim_data.tekai = true;
-
+		PlayCardLogic(state, card.id, playerindex);
+		manaCost = 2;
+		isused = true;
 	}
 	// Card ID 13: 혈류 (Cost 1, HP -10, Attack 60, Attack resets)
 	else if (card.id == 13 && player.mana >= 1) {
-		player.mana -= 1.0f; state.killmana = 1; player.effect_anim_data.manaDown = true; player.effect_anim_data.manaDownTime = 0;
-		player.attackTime = 1; state.quake = true;
-		if (player.attack == 0) state.damage = 60;
-		else {
-			state.minusattack = player.attack; state.damage = player.attack + 60; player.attack = 0; player.effect_anim_data.powerDown = true; player.effect_anim_data.powerDownTime = 0;
-		}
-		state.dehp = true;
-		state.dedamge = 10;
-		player.hp -= 10;
-		player.effect_anim_data.decresehp = true;
-		card.on = false; card.id = rand() % 15; state.sword = true;
-		state.boss.DamageStack += state.damage;
+		ThrowCard tc = ThrowCard(Pos(state.player->x, state.player->y), Pos(ThrowCard::monsterPos, ThrowCard::monsterPos), cardThrowMaxtime);
+		tc.cardID = state.player->hand[i].id;
+		state.CardThrow(tc);
+		manaCost = 1;
+		isused = true;
+		//PlayCardLogic(state, card.id, playerindex);
 	}
 	// Card ID 14: 정조준 (Cost 1, Next Attack +20)
 	else if (card.id == 14 && player.mana >= 1) {
-		player.mana -= 1.0f; state.killmana = 1; player.effect_anim_data.manaDown = true; player.effect_anim_data.manaDownTime = 0;
-		player.effect_anim_data.powerUp = true; player.effect_anim_data.powerUpTime = 0; state.plusattack = 20; player.attack += 20;
-		card.on = false; card.id = rand() % 15; state.Sniper = true;
+		PlayCardLogic(state, card.id, playerindex);
+		manaCost = 1;
+		isused = true;
 	}
 	else {
 		if (i == 0) { card.x = 300; card.y = 700; }
@@ -2045,8 +2053,228 @@ void GameLogic::PlayCard(GameState& state, int i, int playerindex) {
 		else if (i == 4) { card.x = 900; card.y = 700; }
 	}
 
+	if (isused) {
+		card.on = false;
+		card.id = rand() % 15;
+
+		player.mana -= manaCost;
+		state.killmana = manaCost;
+		player.effect_anim_data.manaDown = true;
+		player.effect_anim_data.manaDownTime = 0;
+	}
 	card.drag = false;
 	state.enermytouch = false;
+}
+
+void GameLogic::PlayCardLogic(GameState& state, int cardID, int playerindex, bool usedByMonster)
+{
+	Player& player = state.players[playerindex];
+	if (usedByMonster) {
+		// Card ID 0: 심장 뽑기 (Cost 2, Attack 70, Heal 10, Attack resets)
+		if (cardID == 0) {
+			ApplyDamageToPlayer(state, player.x, player.y, 70, playerindex);
+		}
+		// Card ID 1: 심판 (Cost 3, Attack 90, Attack resets)
+		else if (cardID == 1 && player.mana >= 3) {
+			ApplyDamageToPlayer(state, player.x, player.y, 90, playerindex);
+		}
+		// Card ID 2: 강타 (Cost 2, Attack 60, Attack resets)
+		else if (cardID && player.mana >= 2) {
+			ApplyDamageToPlayer(state, player.x, player.y, 60, playerindex);
+		}
+		// Card ID 4: 돌진 (Cost 2, Attack 40, Defense +10, Attack resets)
+		else if (cardID == 4 && player.mana >= 2) {
+			ApplyDamageToPlayer(state, player.x, player.y, 40, playerindex);
+		}
+		// Card ID 5: 대검휘두르기 (Cost 1, Attack 50, Attack resets)
+		else if (cardID == 5 && player.mana >= 1) {
+			ApplyDamageToPlayer(state, player.x, player.y, 50, playerindex);
+		}
+		// Card ID 10: 절단 (Cost 2, Attack 40 (ignores defense), Attack resets)
+		else if (cardID == 10 && player.mana >= 2) {
+			ApplyDamageToPlayer(state, player.x, player.y, 40, playerindex);
+		}
+		// Card ID 11: 일격 (Cost 3, Attack 140 next turn, Attack resets)
+		else if (cardID == 11 && player.mana >= 3) {
+			ApplyDamageToPlayer(state, player.x, player.y, 140, playerindex);
+		}
+		// Card ID 13: 혈류 (Cost 1, HP -10, Attack 60, Attack resets)
+		else if (cardID == 13 && player.mana >= 1) {
+			ApplyDamageToPlayer(state, player.x, player.y, 60, playerindex);
+		}
+	}
+	else {
+		// Card ID 0: 심장 뽑기 (Cost 2, Attack 70, Heal 10, Attack resets)
+		if (cardID == 0) {
+			player.attackTime = 1;
+			state.quake = true;
+			if (player.attack == 0) state.damage = 70;
+			else {
+				state.minusattack = player.attack;
+				state.damage = player.attack + 70;
+				player.attack = 0;
+				player.effect_anim_data.powerDown = true;
+				player.effect_anim_data.powerDownTime = 0;
+			}
+			state.healenergy = 10;
+			player.effect_anim_data.myheal = true;
+			state.dehp = true;
+			if (player.hp < 90) player.hp += 10;
+			else player.hp = 100;
+			state.sword = true;
+			state.boss.DamageStack += state.damage;
+		}
+		// Card ID 1: 심판 (Cost 3, Attack 90, Attack resets)
+		else if (cardID == 1) {
+			player.attackTime = 1; state.quake = true;
+			if (player.attack == 0) state.damage = 90;
+			else {
+				state.minusattack = player.attack;
+				state.damage = player.attack + 90;
+				player.attack = 0;
+				player.effect_anim_data.powerDown = true;
+				player.effect_anim_data.powerDownTime = 0;
+			}
+			state.dehp = true;
+			state.sword = true;
+			state.boss.DamageStack += state.damage;
+		}
+		// Card ID 2: 강타 (Cost 2, Attack 60, Attack resets)
+		else if (cardID) {
+			player.attackTime = 1; state.quake = true;
+			if (player.attack == 0) state.damage = 60;
+			else {
+				state.minusattack = player.attack; state.damage = player.attack + 60; player.attack = 0; player.effect_anim_data.powerDown = true; player.effect_anim_data.powerDownTime = 0;
+			}
+			state.dehp = true;
+			state.sword = true;
+			state.boss.DamageStack += state.damage;
+		}
+		// Card ID 3: 자세잡기 (Cost 1, Defense +3, Mana +1)
+		else if (cardID == 3) {
+			player.mana += 1.0f;
+			state.healmana = 1;
+			player.effect_anim_data.manaUp = true;
+			player.effect_anim_data.manaUpTime = 0;
+			player.effect_anim_data.defUp = true;
+			player.effect_anim_data.defUpTime = 0;
+			state.defenseup = 3;
+			player.defence += 3;
+			player.effect_anim_data.tekai = true;
+			state.boss.DamageStack += state.damage;
+		}
+		// Card ID 4: 돌진 (Cost 2, Attack 40, Defense +10, Attack resets)
+		else if (cardID == 4) {
+			player.attackTime = 1; state.quake = true;
+			if (player.attack == 0) state.damage = 40;
+			else {
+				state.minusattack = player.attack;
+				state.damage = player.attack + 40;
+				player.attack = 0;
+				player.effect_anim_data.powerDown = true;
+				player.effect_anim_data.powerDownTime = 0;
+			}
+			state.dehp = true;
+			player.effect_anim_data.defUp = true;
+			player.effect_anim_data.defUpTime = 0;
+			state.defenseup = 10;
+			player.defence += 10;
+			state.sword = true;
+			state.boss.DamageStack += state.damage;
+		}
+		// Card ID 5: 대검휘두르기 (Cost 1, Attack 50, Attack resets)
+		else if (cardID == 5) {
+			player.attackTime = 1; state.quake = true;
+			if (player.attack == 0) state.damage = 50;
+			else {
+				state.minusattack = player.attack;
+				state.damage = player.attack + 50;
+				player.attack = 0;
+				player.effect_anim_data.powerDown = true;
+				player.effect_anim_data.powerDownTime = 0;
+			}
+			state.dehp = true;
+			state.sword = true;
+			state.boss.DamageStack += state.damage;
+		}
+		// Card ID 6: 바리게이트 (Cost 2, Defense x2)
+		else if (cardID == 6) {
+			player.effect_anim_data.defUp = true;
+			player.effect_anim_data.defUpTime = 0;
+			state.defenseup = player.defence;
+			player.defence *= 2;
+			player.effect_anim_data.tekai = true;
+			state.boss.DamageStack += state.damage;
+		}
+		// Card ID 7: 방패 밀쳐내기 (Cost 1, Attack = Defense, Attack resets)
+		else if (cardID == 7) {
+			player.attackTime = 1; state.quake = true;
+			if (player.attack == 0) state.damage = player.defence;
+			else {
+				state.minusattack = player.attack; state.damage = player.attack + player.defence; player.attack = 0; player.effect_anim_data.powerDown = true; player.effect_anim_data.powerDownTime = 0;
+			}
+			state.dehp = true;
+			state.sword = true;
+			state.boss.DamageStack += state.damage;
+		}
+		// Card ID 8: 굳건한 태세 (Cost 2, Block next attack)
+		else if (cardID == 8) {
+			player.effect_anim_data.holiShild = true;
+		}
+		// Card ID 9: 방패 세우기 (Cost 1, Defense +5)
+		else if (cardID == 9) {
+			player.effect_anim_data.defUp = true; player.effect_anim_data.defUpTime = 0; state.defenseup = 5; player.defence += 5;
+			player.effect_anim_data.tekai = true;
+		}
+		// Card ID 10: 절단 (Cost 2, Attack 40 (ignores defense), Attack resets)
+		else if (cardID == 10) {
+			player.attackTime = 1; state.quake = true;
+			if (player.attack == 0) state.damage = 40;
+			else {
+				state.minusattack = player.attack; state.damage = player.attack + 40; player.attack = 0; player.effect_anim_data.powerDown = true; player.effect_anim_data.powerDownTime = 0;
+			}
+			state.dehp = true;
+			player.cutting = true;
+			state.sword = true;
+			state.boss.DamageStack += state.damage;
+		}
+		// Card ID 11: 일격 (Cost 3, Attack 140 next turn, Attack resets)
+		else if (cardID == 11) {
+			if (player.attack == 0) state.damage = 140;
+			else {
+				state.minusattack = player.attack; state.damage = player.attack + 140; player.attack = 0; player.effect_anim_data.powerDown = true; player.effect_anim_data.powerDownTime = 0;
+			}
+			player.onepunching = true;
+			player.onepunchingcount = 0;
+			player.onepunchingcounttime = 0;
+			state.boss.DamageStack += state.damage;
+		}
+		// Card ID 12: 고속 이동 (Cost 2, Defense +5, Mana +1)
+		else if (cardID == 12) {
+			player.mana += 1.0f; state.healmana = 1; player.effect_anim_data.manaUp = true; player.effect_anim_data.manaUpTime = 0;
+			player.effect_anim_data.defUp = true; player.effect_anim_data.defUpTime = 0; state.defenseup = 5; player.defence += 5;
+			player.effect_anim_data.tekai = true;
+		}
+		// Card ID 13: 혈류 (Cost 1, HP -10, Attack 60, Attack resets)
+		else if (cardID == 13) {
+			player.attackTime = 1; state.quake = true;
+			if (player.attack == 0) state.damage = 60;
+			else {
+				state.minusattack = player.attack; state.damage = player.attack + 60; player.attack = 0; player.effect_anim_data.powerDown = true; player.effect_anim_data.powerDownTime = 0;
+			}
+			state.dehp = true;
+			state.dedamge = 10;
+			player.hp -= 10;
+			player.effect_anim_data.decresehp = true;
+			state.sword = true;
+			state.boss.DamageStack += state.damage;
+		}
+		// Card ID 14: 정조준 (Cost 1, Next Attack +20)
+		else if (cardID == 14) {
+			player.effect_anim_data.powerUp = true; player.effect_anim_data.powerUpTime = 0; state.plusattack = 20; player.attack += 20;
+			state.Sniper = true;
+		}
+	}
 }
 
 void GameLogic::ApplyDamageToPlayer(GameState& state, int attackX, int attackY, int damage, int playerindex) {
@@ -2155,6 +2383,7 @@ void Renderer::DrawStartScreenUI(HDC hdc, HDC imgDC, const GameState& state, con
 }
 
 HPEN hRedPen = CreatePen(PS_SOLID, 3, RGB(255, 0, 0));
+HBRUSH hBlueBrush = CreateSolidBrush(RGB(0, 0, 255));
 
 void Renderer::DrawPvPScreen(HDC hdc, HDC imgDC, const GameState& state, const AssetManager& assets) {
 	HBITMAP hOldImg;
@@ -2263,6 +2492,8 @@ void Renderer::DrawPVEScreen(HDC hdc, HDC imgDC, const GameState& state, const A
 		MoveToEx(hdc, MapCenterX - (5.0f / 2.0f) * MapMoveMargin + offsetX, MapCenterY + lineOffset + offsetY, NULL);
 		LineTo(hdc, MapCenterX + (5.0f / 2.0f) * MapMoveMargin + offsetX, MapCenterY + lineOffset + offsetY);
 	}
+
+	state.RenderThrowingCards(hdc);
 
 	DrawHand(hdc, imgDC, state, assets);
 	DrawCharacters(hdc, imgDC, state, assets);
@@ -2637,4 +2868,111 @@ void Renderer::ClearCross(HDC hDC, int x, int y, int r) {
 	LineTo(hDC, x - r, y + r);
 	/*SelectObject(hDC, oldPen);
 	DeleteObject(hPen);*/
+}
+
+void GameState::CardUpdate(float deltaTime)
+{
+	constexpr float ParingEpsilon = 0.1f;
+	constexpr float CardThrowingTimeDecreaseRate = 0.95f;
+
+	list<ThrowCard>::iterator EraseArr[128] = {};
+	int up = 0;
+
+	
+	for (list<ThrowCard>::iterator iter = throwCardList.begin(); iter != throwCardList.end(); ++iter) {
+		ThrowCard& tc = *iter;
+		tc.Update(deltaTime);
+		if (fabsf(tc.flowTime - tc.maxTime) <= ParingEpsilon) {
+			if (tc.end_p.x != ThrowCard::monsterPos) {
+				for (int i = 0; i < playerCount; ++i) {
+					players[i].ParingMoment = true;
+					if ((tc.end_p.x == players[i].x && tc.end_p.y == players[i].y) || tc.end_p.x == ThrowCard::playerPos[i]) {
+						if (players[i].ParingMoment) {
+							tc = ThrowCard::CreateFollowCard(Pos(players[i].x, players[i].y), ThrowCard::monsterPos, tc.maxTime * CardThrowingTimeDecreaseRate);
+							break;
+						}
+						else {
+							g_Game.m_Logic.PlayCardLogic(*this, tc.cardID, i, true);
+							EraseArr[up] = iter;
+							up += 1;
+						}
+					}
+				}
+			}
+			else if (tc.end_p.x == ThrowCard::monsterPos) {
+				int r = rand() % 2;
+				if (r == 0) {
+					tc = ThrowCard::CreateFollowCard(Pos(ThrowCard::monsterPos, ThrowCard::monsterPos), ThrowCard::playerPos[0], tc.maxTime * CardThrowingTimeDecreaseRate);
+				}
+				else {
+					g_Game.m_Logic.PlayCardLogic(*this, tc.cardID, 0);
+					EraseArr[up] = iter;
+					up += 1;
+				}
+			}
+		}
+		else if (tc.flowTime - tc.maxTime > ParingEpsilon) {
+			for (int i = 0; i < playerCount; ++i) {
+				if (tc.end_p.x == players[i].x && tc.end_p.y == players[i].y) {
+					g_Game.m_Logic.ApplyDamageToPlayer(*this, players[i].x, players[i].y, 10, 0); // 데미지 10
+				}
+
+				if (tc.end_p.x == ThrowCard::playerPos[i]) {
+					g_Game.m_Logic.PlayCardLogic(*this, tc.cardID, i, true);
+				}
+			}
+			
+			if (tc.end_p.x == ThrowCard::monsterPos) {
+				g_Game.m_Logic.PlayCardLogic(*this, tc.cardID, 0);
+			}
+
+			//push
+			EraseArr[up] = iter;
+			up += 1;
+		}
+	}
+
+	for (int i = 0; i < up; ++i) {
+		throwCardList.erase(EraseArr[i]);
+	}
+	up = 0;
+
+	for (int i = 0; i < 3; ++i) {
+		players[i].ParingMoment = false;
+	}
+}
+
+void GameState::RenderThrowingCards(HDC hdc) const
+{
+	for (auto iter = throwCardList.begin(); iter != throwCardList.end(); ++iter) {
+		Pos startp, endp;
+
+		startp = iter->start_p;
+		if (iter->start_p.x == iter->playerPos[0]) startp = Pos(players[0].x, players[0].y);
+		if (iter->start_p.x == iter->playerPos[1]) startp = Pos(players[1].x, players[1].y);
+		if (iter->start_p.x == iter->playerPos[2]) startp = Pos(players[2].x, players[2].y);
+		if (iter->start_p.x == iter->monsterPos) startp = Pos(boss.x, boss.y);
+
+		endp = iter->end_p;
+		if (iter->end_p.x == iter->playerPos[0]) endp = Pos(players[0].x, players[0].y);
+		if (iter->end_p.x == iter->playerPos[1]) endp = Pos(players[1].x, players[1].y);
+		if (iter->end_p.x == iter->playerPos[2]) endp = Pos(players[2].x, players[2].y);
+		if (iter->end_p.x == iter->monsterPos) endp = Pos(boss.x, boss.y);
+
+		float rate = (iter->flowTime / iter->maxTime);
+
+		Pos rp;
+		rp.x = startp.x + (endp.x - startp.x) * rate;
+		rp.y = startp.y + (endp.y - startp.y) * rate;
+
+		constexpr float margin = 30.0f;
+		RECT cellRect;
+		SetRect(&cellRect, (int)rp.x - margin, (int)rp.y - margin, (int)rp.x + margin, (int)rp.y + margin);
+		FillRect(hdc, &cellRect, hBlueBrush);
+	}
+}
+
+void GameState::CardThrow(ThrowCard tc)
+{
+	throwCardList.push_back(tc);
 }
