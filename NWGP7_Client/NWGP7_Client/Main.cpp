@@ -809,6 +809,15 @@ private:
 };
 
 SOCKET sock;
+void participateInMatch(bool ispvp) {
+	char buff[2] = { 2, ispvp };
+	int n = send(sock, buff, 2, 0);
+	if (n == SOCKET_ERROR) {
+		cout << "전송을 실패했습니다." << endl;
+		return;
+	}
+}
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdParam, int nCmdShow)
 {
 	char* SERVERIP = (char*)"127.0.0.1";
@@ -833,9 +842,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 	retval = connect(sock, (struct sockaddr*)&serveraddr, sizeof(serveraddr));
 	if (retval == SOCKET_ERROR) {
 		cout << "서버 접속에 실패했습니다." << endl;
-	}
-	else {
-		int n = send(sock, "client connect!", 17, 0);
+		return 0;
 	}
 
 	HWND hWnd;
@@ -1154,11 +1161,13 @@ void GameLogic::HandleLButtonDown(GameState& state, int x, int y, HWND hWnd)
 			state.StartScreen = false;
 			state.PvEMode = false;
 			StartBattle(state);
+			participateInMatch(true);
 		}
 		if (x >= 900 && x <= 1150 && y >= 530 && y <= 580) { // 레이드
 			state.StartScreen = false;
 			state.PvEMode = true;
 			StartBattle(state);
+			participateInMatch(false);
 		}
 		if (x >= 900 && x <= 1150 && y >= 610 && y <= 660) PostQuitMessage(0);
 	}

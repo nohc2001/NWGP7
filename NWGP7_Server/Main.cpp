@@ -4,7 +4,9 @@
 #include <stdio.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
-
+#include <vector>
+#include <mutex>
+using namespace std;
 #pragma comment(lib, "ws2_32.lib")
 
 #define SERVERPORT 9000
@@ -35,14 +37,28 @@ void err_display(const char* msg)
 	LocalFree(lpMsgBuf);
 }
 
+struct TryMatch {
+	int client_id;
+	bool is_pvp;
+};
+mutex matchMutex;
+vector<TryMatch> MatchingArr;
+thread_local int threadID;
+
+struct ClientLocalParam {
+	int thread_id;
+	SOCKET sock;
+};
 DWORD WINAPI ProcessClient(LPVOID arg) 
 {
 	int retval;
-
-	SOCKET client_sock = (SOCKET)arg;
+	ClientLocalParam* param = (ClientLocalParam*)arg;
+	threadID = param->thread_id;
+	SOCKET client_sock = (SOCKET)param->sock;
 	struct sockaddr_in clientaddr;
 	char addr[INET_ADDRSTRLEN];
 	int addrlen;
+	bool isParticipant = false;
 
 	char buff[BUFSIZE] = {};
 
@@ -53,12 +69,30 @@ DWORD WINAPI ProcessClient(LPVOID arg)
 	while (1) {
 		int recv_siz = recv(client_sock, buff, BUFSIZE, 0);
 		if (recv_siz > 0) {
-			printf(buff);
+			switch(buff[0]) {
+			case 0: // 사용자 키보드 입력 정보를 서버에 알리는 프로토콜
+				break;
+			case 1: // 사용한 카드의 정보를 서버에 알리는 프로토콜
+				break;
+			case 2: // 클라이언트가 게임에 참여한다는걸 알리는 프로토콜
+			{
+				if (isParticipant == false) {
+					TryMatch tm;
+					tm.client_id = threadID;
+					tm.is_pvp = buff[1];
+					matchMutex.lock();
+					MatchingArr.push_back(tm);
+					matchMutex.unlock();
+					printf("%d client participant in match!\n", threadID);
+					isParticipant = true;
+				}
+				break;
+			}
+			}
 		}
-		else {
+		else if(recv_siz == 0) {
 			break;
 		}
-		Sleep(100);
 	}
 
 	closesocket(client_sock);
@@ -66,8 +100,71 @@ DWORD WINAPI ProcessClient(LPVOID arg)
 	return 0;
 }
 
+DWORD WINAPI ProcessMatching(LPVOID arg) {
+	while (1) {
+		Sleep(500);
+		// 매치 만들기
+		matchMutex.lock();
+		int pvp_stack = 0;
+		TryMatch* pvp_clientsid[3] = {};
+
+		int raid_stack = 0;
+		TryMatch* raid_clientsid[3] = {};
+
+		bool matching_pvp = false;
+		bool matching_raid = false;
+		for (int i = 0; i < MatchingArr.size(); ++i) {
+			TryMatch& tm = MatchingArr[i];
+			if (tm.client_id >= 0) {
+				if (tm.is_pvp) {
+					pvp_clientsid[pvp_stack] = &tm;
+					pvp_stack += 1;
+					if (pvp_stack == 3) {
+						matching_pvp = true;
+						break;
+					}
+				}
+				else {
+					raid_clientsid[raid_stack] = &tm;
+					raid_stack += 1;
+					if (raid_stack == 3) {
+						matching_raid = true;
+						break;
+					}
+				}
+			}
+			else {
+				MatchingArr.erase(MatchingArr.begin() + i);
+				i -= 1;
+			}
+		}
+
+		if (matching_pvp) {
+			// 방을 만들어 클라이언트에게 게임을 제공한다.
+
+			printf("matching! client %d, %d, %d", raid_clientsid[0]->client_id, raid_clientsid[1]->client_id, raid_clientsid[2]->client_id);
+			for (int i = 0; i < 3; ++i) {
+				pvp_clientsid[i]->client_id = -1;
+			}
+		}
+
+		if (matching_raid) {
+			// 방을 만들어 클라이언트에게 게임을 제공한다.
+
+			printf("matching! client %d, %d, %d", raid_clientsid[0]->client_id, raid_clientsid[1]->client_id, raid_clientsid[2]->client_id);
+			for (int i = 0; i < 3; ++i) {
+				raid_clientsid[i]->client_id = -1;
+			}
+		}
+		matchMutex.unlock();
+	}
+}
+
 int main(int argc, char* argv[]) 
 {
+	HANDLE hMatchingThread;
+	hMatchingThread = CreateThread(NULL, 0, ProcessMatching, (LPVOID)0, 0, NULL);
+
 	int retval;
 
 	WSADATA wsa;
@@ -96,9 +193,10 @@ int main(int argc, char* argv[])
 	SOCKET client_sock;
 	struct sockaddr_in clientaddr;
 	int addrlen;
-	HANDLE hThread;
-
+	HANDLE hThread[128] = {};
+	int thread_id_up = 0;
 	while (1) {
+		// 새로 접속하는 클라이언트 처리
 		addrlen = sizeof(clientaddr);
 		client_sock = accept(listen_sock, (struct sockaddr*)&clientaddr, &addrlen);
 		if (client_sock == INVALID_SOCKET) {
@@ -110,14 +208,22 @@ int main(int argc, char* argv[])
 		inet_ntop(AF_INET, &clientaddr.sin_addr, addr, sizeof(addr));
 		printf("\n[NWGP7 서버] 클라이언트 접속: IP 주소=%s, 포트 번호=%d\n", addr, ntohs(clientaddr.sin_port));
 
-		hThread = CreateThread(NULL, 0, ProcessClient, (LPVOID)client_sock, 0, NULL);
-		if (hThread == NULL) { 
-			closesocket(client_sock); 
+		ClientLocalParam* param = new ClientLocalParam();
+		param->sock = client_sock;
+		param->thread_id = thread_id_up;
+		hThread[thread_id_up] = CreateThread(NULL, 0, ProcessClient, (LPVOID)param, 0, NULL);
+
+		if (hThread[thread_id_up] == NULL) {
+			closesocket(client_sock);
+			CloseHandle(hThread[thread_id_up]);
 		}
-		else { 
-			CloseHandle(hThread); 
-		}
+		else thread_id_up += 1;
+	}
+
+	for (int i = 0; i < thread_id_up;++i) {
+		CloseHandle(hThread[i]);
 	}
 
 	WSACleanup();
+	CloseHandle(hMatchingThread);
 }
