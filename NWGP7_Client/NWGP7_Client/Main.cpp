@@ -50,6 +50,8 @@ HINSTANCE g_hInst;
 LPCTSTR lpszClass = L"Window Class Name";
 LPCTSTR lpszWindowName = L"windows program";
 
+
+
 LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam);
 
 struct Card {
@@ -255,7 +257,7 @@ struct ThrowCard {
 	}
 };
 
-class GameState {
+struct GameState {
 public:
 	// 게임 화면 상태
 	bool StartScreen = true;
@@ -299,9 +301,6 @@ public:
 	// 격자 맵 데이터 및 보스 공격 표시
 	static const int GRID_SIZE = 5;       // 고정된 5x5 격자
 	int mapData[GRID_SIZE][GRID_SIZE] = { 0 };  // 0=빈칸, 1=이동가능, 2=보스공격
-
-	int lastAttackx = 0;
-	int lastAttacky = 0;
 
 	// TCHAR 버퍼 (UI 텍스트)
 	TCHAR def[5], atk[5], Mana[10], nowstagestr[10], enerdef[4];
@@ -752,7 +751,7 @@ public:
 	void PlayCard(GameState& state, int cardIndex, int playerindex = 0); // 카드 사용
 	void PlayCardLogic(GameState& state, int cardID, int playerindex = 0, bool usedByMonster = false); // 카드 사용
 
-	void ApplyDamageToPlayer(GameState& state, int rx, int ry, int damage, int playerindex = 0);
+	void ApplyDamageToPlayer(GameState& state, int damage, int playerindex = 0);
 	void ApplyDefenseToEnemy(GameState& state, int defense);
 };
 
@@ -1294,27 +1293,14 @@ void GameLogic::AttackWarning(GameState& state)
 
 void GameLogic::AttackOnRandomGreed(GameState& state, int damage)
 {
-	int rx = rand() % GameState::GRID_SIZE;
-	int ry = rand() % GameState::GRID_SIZE;
-
-
-	state.lastAttackx = rx;
-	state.lastAttacky = ry;
-
-	// 공격 지점 설정
-	state.mapData[ry][rx] = 2; //2 = 공격이라는 뜻 // please enum
-	//state.bossAttackTimer = 0;
-
 	for (int i = 0; i < GameState::GRID_SIZE; ++i) {
 		for (int j = 0; j < GameState::GRID_SIZE; ++j) {
 			if (state.mapData[i][j] == 3) {
 				state.mapData[i][j] = 2;
-				state.lastAttackx = j;
-				state.lastAttacky = i;
-				ApplyDamageToPlayer(state, j, i, damage, 0); // 데미지 15
 			}
 		}
 	}
+	ApplyDamageToPlayer(state, damage, 0); // 데미지 15
 }
 
 void GameLogic::MapStateRepare(GameState& state)
@@ -1475,20 +1461,21 @@ void GameLogic::UpdateBattle_RealTime(GameState& state, float deltaTime)
 		for (int i = 0; i < 5; ++i) {
 			state.player->hand[i].y -= 5;
 			state.player->hand[i].on = true;
+			if (state.player->hand[i].y <= 700) {
+				state.player->hand[i].y = 700;
+				state.droww = false;
+			}
 		}
-		if (state.player->hand[4].y <= 700) {
-			state.player->hand[4].y = 700;
-			state.droww = false;
-		}
+
 	}
 
 	if (state.trunendd) { // 카드 덱이 넣기
 		for (int i = 0; i < 5; ++i) {
 			state.player->hand[i].y += 5;
-		}
-		if (state.player->hand[4].y >= 900) {
-			state.player->hand[4].y = 900;
-			state.trunendd = false;
+			if (state.player->hand[i].y >= 900) {
+				state.player->hand[i].y = 900;
+				state.trunendd = false;
+			}
 		}
 	}
 
@@ -1851,7 +1838,8 @@ void GameLogic::StartBattle(GameState& state)
 	if (state.PvEMode) { //레이드
 		state.boss.attackTime = 0;
 		state.boss.death = false;
-		state.boss.id = rand() % 9;
+		//state.boss.id = rand() % 9;
+		state.boss.id = 0;
 
 		if (state.boss.id == 0) {
 			state.boss.hp = 100;
@@ -2081,35 +2069,35 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, int playerindex, boo
 	if (usedByMonster) {
 		// Card ID 0: 심장 뽑기 (Cost 2, Attack 70, Heal 10, Attack resets)
 		if (cardID == 0) {
-			ApplyDamageToPlayer(state, player.x, player.y, 70, playerindex);
+			ApplyDamageToPlayer(state, 70, playerindex);
 		}
 		// Card ID 1: 심판 (Cost 3, Attack 90, Attack resets)
 		else if (cardID == 1 && player.mana >= 3) {
-			ApplyDamageToPlayer(state, player.x, player.y, 90, playerindex);
+			ApplyDamageToPlayer(state, 90, playerindex);
 		}
 		// Card ID 2: 강타 (Cost 2, Attack 60, Attack resets)
 		else if (cardID && player.mana >= 2) {
-			ApplyDamageToPlayer(state, player.x, player.y, 60, playerindex);
+			ApplyDamageToPlayer(state, 60, playerindex);
 		}
 		// Card ID 4: 돌진 (Cost 2, Attack 40, Defense +10, Attack resets)
 		else if (cardID == 4 && player.mana >= 2) {
-			ApplyDamageToPlayer(state, player.x, player.y, 40, playerindex);
+			ApplyDamageToPlayer(state, 40, playerindex);
 		}
 		// Card ID 5: 대검휘두르기 (Cost 1, Attack 50, Attack resets)
 		else if (cardID == 5 && player.mana >= 1) {
-			ApplyDamageToPlayer(state, player.x, player.y, 50, playerindex);
+			ApplyDamageToPlayer(state, 50, playerindex);
 		}
 		// Card ID 10: 절단 (Cost 2, Attack 40 (ignores defense), Attack resets)
 		else if (cardID == 10 && player.mana >= 2) {
-			ApplyDamageToPlayer(state, player.x, player.y, 40, playerindex);
+			ApplyDamageToPlayer(state, 40, playerindex);
 		}
 		// Card ID 11: 일격 (Cost 3, Attack 140 next turn, Attack resets)
 		else if (cardID == 11 && player.mana >= 3) {
-			ApplyDamageToPlayer(state, player.x, player.y, 140, playerindex);
+			ApplyDamageToPlayer(state, 140, playerindex);
 		}
 		// Card ID 13: 혈류 (Cost 1, HP -10, Attack 60, Attack resets)
 		else if (cardID == 13 && player.mana >= 1) {
-			ApplyDamageToPlayer(state, player.x, player.y, 60, playerindex);
+			ApplyDamageToPlayer(state, 60, playerindex);
 		}
 	}
 	else {
@@ -2286,40 +2274,42 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, int playerindex, boo
 	}
 }
 
-void GameLogic::ApplyDamageToPlayer(GameState& state, int attackX, int attackY, int damage, int playerindex) {
+void GameLogic::ApplyDamageToPlayer(GameState& state, int damage, int playerindex) {
 	Player& player = state.players[playerindex];
-	state.boss.attackTime = 1;
 	player.effect_anim_data.hurt = true;
 
 	int px = player.pos.x + 2;
-	int py = player.pos.y + 2;
+	int py = 2 - player.pos.y;
 
-	if (px != attackX || py != attackY)
-	{
-		// 공격이 빗나감
-		return;
+	for (int i = 0; i < GameState::GRID_SIZE; ++i) {
+		for (int j = 0; j < GameState::GRID_SIZE; ++j) {
+			if (state.mapData[i][j] == 2 && (py == i && px == j)) {
+
+				if (player.effect_anim_data.holiShild) { // 무적
+					damage = 0;
+					player.effect_anim_data.holiShild = false;
+				}
+				// 방어력 대비 피 다는거 계산
+				state.defensedown = damage;
+				int temp = player.defence;
+				int damageDealt = player.defence - damage;
+
+				player.defence = (damageDealt > 0) ? damageDealt : 0;
+
+				if (damageDealt < 0) {
+					state.dedamge = -damageDealt;
+					player.hp -= state.dedamge;
+					player.effect_anim_data.decresehp = true;
+					if (temp > 0) player.effect_anim_data.defDown = true;
+				}
+				else {
+					player.effect_anim_data.defDown = true;
+				}
+			}
+		}
 	}
 
-	if (player.effect_anim_data.holiShild) {
-		damage = 0;
-		player.effect_anim_data.holiShild = false;
-	}
-
-	state.defensedown = damage;
-	int temp = player.defence;
-	int damageDealt = player.defence - damage;
-
-	player.defence = (damageDealt > 0) ? damageDealt : 0;
-
-	if (damageDealt < 0) {
-		state.dedamge = -damageDealt;
-		player.hp -= state.dedamge;
-		player.effect_anim_data.decresehp = true;
-		if (temp > 0) player.effect_anim_data.defDown = true;
-	}
-	else {
-		player.effect_anim_data.defDown = true;
-	}
+	
 }
 
 void GameLogic::ApplyDefenseToEnemy(GameState& state, int defense) {
@@ -2832,19 +2822,24 @@ void Renderer::DrawEffects(HDC hdc, HDC imgDC, const GameState& state, const Ass
 			hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitholiShild[p.effect_anim_data.holiShildcount]);
 			TransparentBlt(hdc, p.x + 20, p.y - 50, 300, 300, imgDC, 0, 0, assets.holiShildWidth, assets.holiShildHeight, RGB(255, 255, 255));
 		}
-		if (p.effect_anim_data.hurt && state.lastAttackx >= 0 && state.lastAttacky >= 0)
-		{
-			constexpr float rateW = 0.4f;
-			constexpr float rateH = 0.8f;
-			constexpr float originOffsetX = MapCenterX - 2 * MapMoveMargin + PlayerW * rateW;
-			constexpr float originOffsetY = MapCenterX - 2 * MapMoveMargin + PlayerH * rateH;
+		// 피격 이펙트
+		for (int i = 0; i < GameState::GRID_SIZE; i++) {
+			for (int j = 0; j < GameState::GRID_SIZE; j++) {
+				if (p.effect_anim_data.hurt && state.mapData[i][j] == 2)
+				{
+					constexpr float rateW = 0.4f;
+					constexpr float rateH = 0.8f;
+					constexpr float originOffsetX = MapCenterX - 2 * MapMoveMargin + PlayerW * rateW;
+					constexpr float originOffsetY = MapCenterX - 2 * MapMoveMargin + PlayerH * rateH;
 
-			int tileCenterX = originOffsetX + state.lastAttackx * MapMoveMargin;
-			int tileCenterY = originOffsetY + state.lastAttacky * MapMoveMargin;
+					int tileCenterX = originOffsetX + j * MapMoveMargin;
+					int tileCenterY = originOffsetY + i * MapMoveMargin;
 
-			// 피격 이펙트 (보스 공격 위치에 그리기)
-			hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBithurt[p.effect_anim_data.hurtcount]);
-			TransparentBlt(hdc, tileCenterX - 150, tileCenterY - 150, 300, 300, imgDC, 0, 0, assets.hurtWidth, assets.hurtHeight, RGB(255, 255, 255));
+					// 피격 이펙트 (보스 공격 위치에 그리기)
+					hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBithurt[p.effect_anim_data.hurtcount]);
+					TransparentBlt(hdc, tileCenterX - 150, tileCenterY - 150, 300, 300, imgDC, 0, 0, assets.hurtWidth, assets.hurtHeight, RGB(255, 255, 255));
+				}
+			}
 		}
 	}
 
@@ -2923,7 +2918,7 @@ void GameState::CardUpdate(float deltaTime)
 		else if (tc.flowTime - tc.maxTime > ParingEpsilon) {
 			for (int i = 0; i < playerCount; ++i) {
 				if (tc.end_p.x == players[i].x && tc.end_p.y == players[i].y) {
-					g_Game.m_Logic.ApplyDamageToPlayer(*this, players[i].x, players[i].y, 10, 0); // 데미지 10
+					g_Game.m_Logic.ApplyDamageToPlayer(*this, 10, 0); // 데미지 10
 				}
 
 				if (tc.end_p.x == ThrowCard::playerPos[i]) {
