@@ -1761,7 +1761,7 @@ void PresentationState::CardUpdate(float deltaTime, const GameState& gameState)
 
 void PresentationState::RenderThrowingCards(HDC hdc) const
 {
-	for (auto iter = throwCardList.begin(); iter != throwCardList.end(); ++iter) {
+	/*for (auto iter = throwCardList.begin(); iter != throwCardList.end(); ++iter) {
 		Pos startp, endp;
 
 		startp = iter->start_p;
@@ -1786,7 +1786,7 @@ void PresentationState::RenderThrowingCards(HDC hdc) const
 		RECT cellRect;
 		SetRect(&cellRect, (int)rp.x - margin, (int)rp.y - margin, (int)rp.x + margin, (int)rp.y + margin);
 		FillRect(hdc, &cellRect, hBlueBrush);
-	}
+	}*/
 }
 
 void PresentationState::CardThrow(ThrowCard tc)
