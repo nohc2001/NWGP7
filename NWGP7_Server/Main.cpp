@@ -37,6 +37,123 @@ void err_display(const char* msg)
 	LocalFree(lpMsgBuf);
 }
 
+struct CardData {
+	int id = 0;
+};
+
+struct Pos {
+	int x;
+	int y;
+
+	Pos() {
+
+	}
+
+	Pos(int X, int Y) :
+		x{ X }, y{ Y }
+	{
+
+	}
+};
+
+struct BossData {
+	int defence = 0;
+	int stage = 0;
+	int hp = 100;
+	bool death = false;
+	bool bossAwakening = false;
+	int id = 0; // 보스 종류
+	int patturn = 0;
+	int healEnergy = 0;
+	int DamageStack = 0;
+	float attackTimer = 0.0f;
+
+	bool bossmode2 = false;
+	bool bossmode3 = false;
+	int boss_statck = 0;
+	bool nodamageMode = false; // 보스 무적 모드
+
+	int attackState = 0; // 0: 아무것도 아님 1: 경고 2: 데미지공격
+	float currentStateDuration = 3.0f; // 현재 상태 몇초 지속
+};
+
+struct PlayerData {
+	int hp = 100;
+	float maxMana = 3;
+	float mana = 3;
+	int defence = 0;
+	int attack = 0;
+	Pos pos;
+	CardData hand[5];
+
+	// 상태 플래그
+	bool playerdeath = false;
+	bool cutting = false;
+	bool invincible = false;
+	bool isCastingOnePunch = false;
+	float onePunchCastTimer = 0.0f;
+	int onePunchStoredDamage = 0;
+	bool ParingMoment = false;
+};
+
+struct GameState {
+public:
+	// 게임 화면 상태
+	bool PvEMode = false;  // true 일떄 레이드 false일때 pvp
+
+	bool GameClear = false;
+
+	// 전투 상태
+	static constexpr int playerCount = 3;
+	PlayerData players[playerCount]; // players data
+
+	static constexpr int clientindex = 0;
+	PlayerData* player = &player[clientindex]; // client's player
+
+	BossData boss; // boss data
+
+	bool tempstop = false; // 일시정지
+	bool dontattackcard = false;
+
+	// 격자 맵 데이터 및 보스 공격 표시
+	static const int GRID_SIZE = 5;       // 고정된 5x5 격자
+	int mapData[GRID_SIZE][GRID_SIZE] = { 0 };  // 0=빈칸, 1=이동가능, 2=보스공격
+
+};
+
+class GameLogic {
+public:
+	void Initialize(GameState& state);
+
+	void Update(GameState& state);
+
+	void UpdatePvE(GameState& state, float deltaTime);
+	void UpdatePvP(GameState& state, float deltaTime);
+
+	void CheckWinLossConditionsPvP(GameState& state);
+	void CheckWinLossConditionsPvE(GameState& state);
+
+	void AttackWarning(GameState& state);
+	void AttackOnRandomGreed(GameState& state, int damage);
+	void MapStateRepare(GameState& state);
+
+	// if realtime
+	void UpdateBattle_RealTime(GameState& state, float deltaTime);
+	void ExecuteEnemyAI(GameState& state, float deltaTime);
+	void UpdateBuffsAndTimers(GameState& state, float deltaTime);
+
+	void StartBattle(GameState& state); // 맵에서 전투 시작
+	void PlayCard(GameState& state, int cardIndex, int playerindex = 0); // 카드 사용
+	void PlayCardLogic(GameState& state, int cardID, int playerindex = 0, bool usedByMonster = false); // 카드 사용
+
+	void CardUpdate(GameState& state, float deltaTime);
+
+	void ApplyDamageToPlayer(GameState& state, int damage, int playerindex = 0);
+	void ApplyDamageToBoss(GameState& state, int playerID, int rawDamage);
+	void ApplyDefenseToEnemy(GameState& state, int defense);
+	void HealBoss(GameState& state, int healAmount);
+};
+
 struct TryMatch {
 	int client_id;
 	bool is_pvp;
@@ -226,4 +343,721 @@ int main(int argc, char* argv[])
 
 	WSACleanup();
 	CloseHandle(hMatchingThread);
+}
+
+void GameLogic::Initialize(GameState& state)
+{
+	srand((unsigned int)time(NULL));
+
+	state.player = &state.players[0];
+
+	for (int i = 0; i < 3; ++i) { // 3 플레이어 초기화
+
+		for (int i = 0; i < 5; ++i) {
+			state.players[i].hand[i].id = rand() % 15;
+		}
+		// 주인공 좌표/스탯 초기화
+		state.players[i].pos.x = 0;
+		state.players[i].pos.y = 0;
+		state.players[i].defence = 0;
+		state.players[i].hp = 0;
+		state.players[i].mana = 0;
+		state.players[i].maxMana = 0;
+		state.players[i].attack = 0;
+
+		state.players[i].playerdeath = false;
+		state.players[i].cutting = false;
+		state.players[i].isCastingOnePunch = false;
+		state.players[i].ParingMoment = false;
+	}
+}
+
+void GameLogic::Update(GameState& state)
+{
+	if (state.PvEMode) {
+		float deltaTime = 0.017f;
+		UpdatePvE(state, deltaTime); // 레이드
+	}
+	else {
+		float deltaTime = 0.017f;
+		UpdatePvP(state, deltaTime); // pvp
+	}
+}
+
+void GameLogic::UpdatePvE(GameState& state, float deltaTime)
+{
+	CheckWinLossConditionsPvE(state);
+	UpdateBattle_RealTime(state, deltaTime);
+}
+
+void GameLogic::UpdatePvP(GameState& state, float deltaTime)
+{
+	CheckWinLossConditionsPvP(state);
+	UpdateBattle_RealTime(state, deltaTime);
+}
+
+void GameLogic::CheckWinLossConditionsPvE(GameState& state)
+{
+	if (state.boss.hp <= 0) { // boss 
+		if (state.boss.bossAwakening) {
+			//state.boomswitch = true; // 폭발 모션 재생
+			state.boss.death = true;
+		}
+		else {
+			//state.boss.heal = true; // 체력회복 모션 재생
+			state.boss.healEnergy = 100;
+			state.boss.bossAwakening = true;
+			state.boss.defence = 20;
+		}
+	}
+	if (state.players[0].hp <= 0 && state.players[0].playerdeath == false) {
+		state.players[0].playerdeath = true;
+		//state.pdeath = true; // 플레이어 죽는 모션 재생
+	}
+}
+
+void GameLogic::CheckWinLossConditionsPvP(GameState& state)
+{
+	// pvp 모드 승리 패배 조건
+}
+
+void GameLogic::AttackWarning(GameState& state)
+{
+	MapStateRepare(state);
+
+	int count = 3;
+	for (int i = 0; i < count; ++i) {
+		int rx = rand() % GameState::GRID_SIZE;
+		int ry = rand() % GameState::GRID_SIZE;
+
+		state.mapData[ry][rx] = 3; // please enum
+	}
+}
+
+void GameLogic::AttackOnRandomGreed(GameState& state, int damage)
+{
+	for (int i = 0; i < GameState::GRID_SIZE; ++i) {
+		for (int j = 0; j < GameState::GRID_SIZE; ++j) {
+			if (state.mapData[i][j] == 3) {
+				state.mapData[i][j] = 2;
+			}
+		}
+	}
+	ApplyDamageToPlayer(state, damage, 0); // 데미지 15
+}
+
+void GameLogic::MapStateRepare(GameState& state)
+{
+	for (int i = 0; i < GameState::GRID_SIZE; i++) {
+		for (int j = 0; j < GameState::GRID_SIZE; j++) {
+			state.mapData[i][j] = 0;
+		}
+	}
+}
+
+void GameLogic::ExecuteEnemyAI(GameState& state, float deltaTime)
+{
+	// 스테이지 1 슬라임 패턴
+	if (state.boss.id == 0) { // 데미지 0~5
+		if (state.boss.attackState == 0) {
+			state.boss.attackState = 1;
+			state.boss.currentStateDuration = 3.0f; //경고
+			AttackWarning(state);
+		}
+		else if (state.boss.attackState == 1) {
+			state.boss.attackState = 2;
+			state.boss.currentStateDuration = 1.0f; //공격
+			AttackOnRandomGreed(state, 5);
+		}
+		else if (state.boss.attackState == 2) {
+			state.boss.attackState = 0;
+			state.boss.currentStateDuration = 3.0f; // 복구
+			MapStateRepare(state);
+		}
+	}
+	//// 스테이지 2-1 기사 50% 공격 50% 방어
+	//else if (state.boss.id == 1) { // 데미지 10 / 방어 10
+	//	state.boss.patturn = rand() % 2;
+	//	if (state.boss.patturn == 0) {
+	//		AttackOnRandomGreed(state, 30);
+	//	}
+	//	else {
+	//		ApplyDefenseToEnemy(state, 10);
+	//	}
+	//}
+	//// 스테이지 2-2 주술사 50% 공격 50% 자힐
+	//else if (state.boss.id == 2) { // 데미지 10 / 힐 10
+	//	state.boss.patturn = rand() % 2;
+	//	if (state.boss.patturn == 0) {
+	//		HealBoss(state, 30);
+	//		state.boss.healEnergy = 10;
+	//	}
+	//	else {
+	//		AttackOnRandomGreed(state, 30);
+	//	}
+	//}
+	//// 스테이지 3-1 거북
+	//else if (state.boss.id == 3) {
+	//	if (state.boss.bossmode2) { // 빨간 모드
+	//		AttackOnRandomGreed(state, 30);
+	//	}
+	//	else { // 노멀 모드
+	//		state.boss.boss_statck++;
+	//		if (state.boss.boss_statck == 5) {
+	//			state.boss.bossmode2 = true;
+	//		}
+	//		ApplyDefenseToEnemy(state, 20);
+	//	}
+	//}
+	//// 스테이지 3-2 개
+	//else if (state.boss.id == 4) { // 데미지 20 / 방어 20
+	//	AttackOnRandomGreed(state, 30);
+	//	ApplyDefenseToEnemy(state, 20);
+	//}
+	//// 스테이지 3-3 두더지
+	//else if (state.boss.id == 5) {
+	//	if (state.boss.bossmode2) { // 땅 팜
+	//		state.boss.boss_statck++;
+	//		if (state.boss.boss_statck == 5) {
+	//			state.boss.boss_statck = 0;
+	//			state.boss.bossmode3 = true; // 공격 애니메이션
+	//			AttackOnRandomGreed(state, 30);
+	//		}
+	//	}
+	//	else { // 지상
+	//		state.boss.boss_statck++;
+	//		if (state.boss.boss_statck == 3) {
+	//			state.boss.bossmode2 = true;
+	//			state.dontattackcard = true; // 공격 카드 사용 금지
+	//		}
+	//		AttackOnRandomGreed(state, 30);
+	//		ApplyDefenseToEnemy(state, 10);
+	//	}
+	//}
+	//// 스테이지 4-1 마트료시카
+	//else if (state.boss.id == 6) { // 공격20 방어 20
+	//	AttackOnRandomGreed(state, 30);
+	//	ApplyDefenseToEnemy(state, 20);
+	//}
+	//// 스테이지 4-2 관
+	//else if (state.boss.id == 7) { // 공격 20 방 20 3턴마다 무적 다음턴 30뎀
+	//	state.boss.boss_statck++;
+	//	if (state.boss.boss_statck == 3) {
+	//		state.boss.bossmode3 = true;
+	//		state.boss.nodamageMode = true; // 무적
+	//	}
+	//	else if (state.boss.boss_statck == 4) {
+	//		state.boss.boss_statck = 0;
+	//		state.boss.nodamageMode = false; // 무적 해제
+	//		AttackOnRandomGreed(state, 30);
+	//		state.boss.bossmode3 = false;
+	//	}
+	//	else {
+	//		AttackOnRandomGreed(state, 30);
+	//		ApplyDefenseToEnemy(state, 20);
+	//	}
+	//}
+	//// 보스 스테이지
+	//if (state.boss.id == 8) { // 노 각성 공 20 방 20 / 각성 공 30 방 30
+	//	if (state.boss.bossAwakening) {
+	//		AttackOnRandomGreed(state, 30);
+	//		ApplyDefenseToEnemy(state, 30);
+	//	}
+	//	else {
+	//		AttackOnRandomGreed(state, 30);
+	//		ApplyDefenseToEnemy(state, 20);
+	//	}
+	//}
+}
+
+void GameLogic::UpdateBattle_RealTime(GameState& state, float deltaTime)
+{
+	//CardUpdate(state, deltaTime);
+
+	//player Update
+	for (int i = 0; i < GameState::playerCount; ++i) {
+		PlayerData& p = state.players[i];
+
+		//mana regen
+		constexpr float manaRegenSpeed = 0.5f;
+		p.mana += deltaTime * manaRegenSpeed;
+		if (p.mana > p.maxMana) {
+			p.mana = p.maxMana;
+		}
+
+		//onepuncing?
+		if (p.isCastingOnePunch) { // 일격!!
+			p.onePunchCastTimer -= deltaTime;
+			if (p.onePunchCastTimer <= 0.0f) {
+				p.isCastingOnePunch = false;
+				p.onePunchCastTimer = 0.0f;
+
+				ApplyDamageToBoss(state, i, p.onePunchStoredDamage);
+				p.onePunchStoredDamage = 0;
+
+				// 일격 & 지진 이펙트 활성화
+			}
+		}
+	}
+	//boss update
+	if (state.PvEMode) {
+		if (state.boss.hp <= 0 && !state.boss.death) {
+			state.boss.death = true; // 보스 죽음
+		}
+		state.boss.attackTimer += deltaTime;
+
+		constexpr float bossAttackDelay = 3;
+		if (state.boss.attackTimer > bossAttackDelay && !state.boss.death) { // 턴 시작
+			state.boss.attackTimer = 0;
+			// 카드 드로우 애니메이션 draww = true
+			ExecuteEnemyAI(state, deltaTime);
+		}
+	}
+
+}
+
+void GameLogic::UpdateBuffsAndTimers(GameState& state, float deltaTime)
+{
+	for (int i = 0; i < GameState::playerCount; ++i) {
+		PlayerData& p = state.players[i];
+	}
+
+}
+
+void GameLogic::StartBattle(GameState& state)
+{
+	//$Chang Player Init
+	for (int i = 0; i < GameState::playerCount; ++i) {
+		PlayerData& p = state.players[i];
+		p.mana = p.maxMana;
+		p.hp = 100;
+		p.pos.x = 0;
+		p.pos.y = 0;
+
+		for (int i = 0; i < 5; ++i) {
+			p.hand[i].id = rand() % 15;
+		}
+	}
+
+	if (state.PvEMode) { //레이드
+		state.boss.attackTimer = 0.0f;
+		state.boss.death = false;
+		//state.boss.id = rand() % 9;
+		state.boss.id = 0;
+
+		if (state.boss.id == 0) {
+			state.boss.hp = 100;
+			state.boss.defence = 0;
+		}
+		else if (state.boss.id == 1) {
+			state.boss.hp = 100;
+			state.boss.defence = 15;
+		}
+		else if (state.boss.id == 2) {
+			state.boss.hp = 100;
+			state.boss.defence = 15;
+		}
+		else if (state.boss.id == 3) {
+			state.boss.hp = 100;
+			state.boss.defence = 20;
+			state.boss.bossmode2 = false;
+			state.boss.boss_statck = 0;
+		}
+		else if (state.boss.id == 4) {
+			state.boss.hp = 100;
+			state.boss.defence = 30;
+		}
+		else if (state.boss.id == 5) {
+			state.boss.hp = 100;
+			state.boss.defence = 20;
+			state.boss.bossmode2 = false;
+			state.boss.boss_statck = 0;
+		}
+		else if (state.boss.id == 6) {
+			state.boss.hp = 100;
+			state.boss.defence = 20;
+			state.boss.boss_statck = 0;
+		}
+		else if (state.boss.id == 7) {
+			state.boss.hp = 100;
+			state.boss.defence = 20;
+			state.boss.nodamageMode = false;
+			state.boss.bossmode3 = false;
+			state.boss.boss_statck = 0;
+		}
+		else if (state.boss.id == 8) {
+			state.boss.hp = 100;
+			state.boss.defence = 20;
+			state.boss.bossAwakening = false;
+		}
+	}
+	else { // pvp
+
+	}
+}
+
+void GameLogic::PlayCard(GameState& state, int playerIndex, int cardIndex) {
+	PlayerData& player = state.players[playerIndex];
+	CardData& card = player.hand[cardIndex];
+
+	constexpr float cardThrowMaxtime = 0.75f;
+
+	if (state.dontattackcard) {
+		// 공격카드 사용 불가
+	}
+
+	bool isused = false;
+	int manaCost = 0;
+	// Card ID 0: 심장 뽑기 (Cost 2, Attack 70, Heal 10, Attack resets)
+	if (card.id == 0 && player.mana >= 2) {
+		manaCost = 2;
+		isused = true;
+	}
+	// Card ID 1: 심판 (Cost 3, Attack 90, Attack resets)
+	else if (card.id == 1 && player.mana >= 3) {
+		manaCost = 3;
+		isused = true;
+	}
+	// Card ID 2: 강타 (Cost 2, Attack 60, Attack resets)
+	else if (card.id == 2 && player.mana >= 2) {
+		manaCost = 2;
+		isused = true;
+	}
+	// Card ID 3: 자세잡기 (Cost 1, Defense +3, Mana +1)
+	else if (card.id == 3 && player.mana >= 1) {
+		manaCost = 3;
+		isused = true;
+	}
+	// Card ID 4: 돌진 (Cost 2, Attack 40, Defense +10, Attack resets)
+	else if (card.id == 4 && player.mana >= 2) {
+		manaCost = 2;
+		isused = true;
+	}
+	// Card ID 5: 대검휘두르기 (Cost 1, Attack 50, Attack resets)
+	else if (card.id == 5 && player.mana >= 1) {
+		manaCost = 1;
+		isused = true;
+	}
+	// Card ID 6: 바리게이트 (Cost 2, Defense x2)
+	else if (card.id == 6 && player.mana >= 2) {
+		manaCost = 2;
+		isused = true;
+	}
+	// Card ID 7: 방패 밀쳐내기 (Cost 1, Attack = Defense, Attack resets)
+	else if (card.id == 7 && player.mana >= 1) {
+		manaCost = 1;
+		isused = true;
+	}
+	// Card ID 8: 굳건한 태세 (Cost 2, Block next attack)
+	else if (card.id == 8 && player.mana >= 2) {
+		manaCost = 2;
+		isused = true;
+	}
+	// Card ID 9: 방패 세우기 (Cost 1, Defense +5)
+	else if (card.id == 9 && player.mana >= 1) {
+		manaCost = 1;
+		isused = true;
+	}
+	// Card ID 10: 절단 (Cost 2, Attack 40 (ignores defense), Attack resets)
+	else if (card.id == 10 && player.mana >= 2) {
+		manaCost = 2;
+		isused = true;
+	}
+	// Card ID 11: 일격 (Cost 3, Attack 140 next turn, Attack resets)
+	else if (card.id == 11 && player.mana >= 3) {
+		manaCost = 3;
+		isused = true;
+	}
+	// Card ID 12: 고속 이동 (Cost 2, Defense +5, Mana +1)
+	else if (card.id == 12 && player.mana >= 2) {
+		manaCost = 2;
+		isused = true;
+	}
+	// Card ID 13: 혈류 (Cost 1, HP -10, Attack 60, Attack resets)
+	else if (card.id == 13 && player.mana >= 1) {
+		manaCost = 1;
+		isused = true;
+	}
+	// Card ID 14: 정조준 (Cost 1, Next Attack +20)
+	else if (card.id == 14 && player.mana >= 1) {
+		manaCost = 1;
+		isused = true;
+	}
+
+	if (isused) {
+
+		player.mana -= manaCost;
+		PlayCardLogic(state, card.id, playerIndex);
+		card.id = rand() % 15;
+		// 마나 다운 애니메이션
+		// 카드 사용 애니매이션
+	}
+}
+
+void GameLogic::PlayCardLogic(GameState& state, int cardID, int playerindex, bool usedByMonster)
+{
+	PlayerData& player = state.players[playerindex];
+	if (usedByMonster) {
+		// Card ID 0: 심장 뽑기 (Cost 2, Attack 70, Heal 10, Attack resets)
+		if (cardID == 0) {
+			ApplyDamageToPlayer(state, 70, playerindex);
+		}
+		// Card ID 1: 심판 (Cost 3, Attack 90, Attack resets)
+		else if (cardID == 1 && player.mana >= 3) {
+			ApplyDamageToPlayer(state, 90, playerindex);
+		}
+		// Card ID 2: 강타 (Cost 2, Attack 60, Attack resets)
+		else if (cardID && player.mana >= 2) {
+			ApplyDamageToPlayer(state, 60, playerindex);
+		}
+		// Card ID 4: 돌진 (Cost 2, Attack 40, Defense +10, Attack resets)
+		else if (cardID == 4 && player.mana >= 2) {
+			ApplyDamageToPlayer(state, 40, playerindex);
+		}
+		// Card ID 5: 대검휘두르기 (Cost 1, Attack 50, Attack resets)
+		else if (cardID == 5 && player.mana >= 1) {
+			ApplyDamageToPlayer(state, 50, playerindex);
+		}
+		// Card ID 10: 절단 (Cost 2, Attack 40 (ignores defense), Attack resets)
+		else if (cardID == 10 && player.mana >= 2) {
+			ApplyDamageToPlayer(state, 40, playerindex);
+		}
+		// Card ID 11: 일격 (Cost 3, Attack 140 next turn, Attack resets)
+		else if (cardID == 11 && player.mana >= 3) {
+			ApplyDamageToPlayer(state, 140, playerindex);
+		}
+		// Card ID 13: 혈류 (Cost 1, HP -10, Attack 60, Attack resets)
+		else if (cardID == 13 && player.mana >= 1) {
+			ApplyDamageToPlayer(state, 60, playerindex);
+		}
+	}
+	else {
+		// Card ID 0: 심장 뽑기 (Cost 2, Attack 70, Heal 10, Attack resets)
+		if (cardID == 0) {
+			int damage = 70;
+			if (player.attack != 0) {
+				damage += player.attack;
+				player.attack = 0;
+				// 추가 공격 다운 애니메이션
+			}
+			player.hp += 10;
+			if (player.hp > 100) player.hp = 100;
+			ApplyDamageToBoss(state, playerindex, damage);
+		}
+		// Card ID 1: 심판 (Cost 3, Attack 90, Attack resets)
+		else if (cardID == 1) {
+			int damage = 90;
+			if (player.attack != 0) {
+				damage += player.attack;
+				player.attack = 0;
+				// 추가 공격 다운 애니메이션
+			}
+			ApplyDamageToBoss(state, playerindex, damage);
+		}
+		// Card ID 2: 강타 (Cost 2, Attack 60, Attack resets)
+		else if (cardID == 2) {
+			int damage = 60;
+			if (player.attack != 0) {
+				damage += player.attack;
+				player.attack = 0;
+				// 추가 공격 다운 애니메이션
+			}
+			ApplyDamageToBoss(state, playerindex, damage);
+		}
+		// Card ID 3: 자세잡기 (Cost 1, Defense +3, Mana +1)
+		else if (cardID == 3) {
+			player.mana += 1.0f;
+			player.defence += 3;
+			// 마나 업, 방어 업 애니매이션, 테카이 애니매이션
+		}
+		// Card ID 4: 돌진 (Cost 2, Attack 40, Defense +10, Attack resets)
+		else if (cardID == 4) {
+			int damage = 60;
+			if (player.attack != 0) {
+				damage += player.attack;
+				player.attack = 0;
+				// 추가 공격 다운 애니메이션
+			}
+			player.defence += 3;
+			// 방어 업, 테카이 애니메이션
+			ApplyDamageToBoss(state, playerindex, damage);
+		}
+		// Card ID 5: 대검휘두르기 (Cost 1, Attack 50, Attack resets)
+		else if (cardID == 5) {
+			int damage = 50;
+			if (player.attack != 0) {
+				damage += player.attack;
+				player.attack = 0;
+				// 추가 공격 다운 애니메이션
+			}
+			ApplyDamageToBoss(state, playerindex, damage);
+		}
+		// Card ID 6: 바리게이트 (Cost 2, Defense x2)
+		else if (cardID == 6) {
+			player.defence *= 2;
+			// 텟카이 애니메이션, 방어 업 애니메이션
+		}
+		// Card ID 7: 방패 밀쳐내기 (Cost 1, Attack = Defense, Attack resets)
+		else if (cardID == 7) {
+			int damage = player.defence;
+			if (player.attack != 0) {
+				damage += player.attack;
+				player.attack = 0;
+				// 추가 공격 다운 애니메이션
+			}
+			ApplyDamageToBoss(state, playerindex, damage);
+		}
+		// Card ID 8: 굳건한 태세 (Cost 2, Block next attack)
+		else if (cardID == 8) {
+			player.invincible = true;
+			// 홀리 쉴드 애니메이션
+		}
+		// Card ID 9: 방패 세우기 (Cost 1, Defense +5)
+		else if (cardID == 9) {
+			player.defence += 5;
+			// 방어 업, 텟카이 애니메이션
+		}
+		// Card ID 10: 절단 (Cost 2, Attack 40 (ignores defense), Attack resets)
+		else if (cardID == 10) {
+			int damage = 40;
+			if (player.attack != 0) {
+				damage += player.attack;
+				player.attack = 0;
+				// 추가 공격력 다운
+			}
+			player.cutting = true; // 
+			ApplyDamageToBoss(state, playerindex, damage);
+		}
+		// Card ID 11: 일격 (Cost 3, Attack 140 next turn, Attack resets)
+		else if (cardID == 11) {
+			int damage = 140;
+			if (player.attack != 0) {
+				damage += player.attack;
+				player.attack = 0;
+				// 추가 공격다운 애니메이션
+			}
+			player.isCastingOnePunch = true;
+			player.onePunchCastTimer = 3.0f; // 
+			player.onePunchStoredDamage = damage;
+			// 일격 애니메이션
+		}
+		// Card ID 12: 고속 이동 (Cost 2, Defense +5, Mana +1)
+		else if (cardID == 12) {
+			player.mana += 1.0f; // 마나 업 애니매이션
+			player.defence += 5; // 방어력 업 애니메이션
+		}
+		// Card ID 13: 혈류 (Cost 1, HP -10, Attack 60, Attack resets)
+		else if (cardID == 13) {
+			int damage = 60;
+			if (player.attack != 0) {
+				damage += player.attack;
+				player.attack = 0;
+				// 추가 공격 다운 애니메이션
+			}
+			player.hp -= 10;
+			ApplyDamageToBoss(state, playerindex, damage);
+
+			//피 감소 애니메이션
+		}
+		// Card ID 14: 정조준 (Cost 1, Next Attack +20)
+		else if (cardID == 14) {
+			player.attack += 20;
+			// 공격력 업 애니매이션, 스나이퍼 애니메이션
+		}
+	}
+}
+
+void GameLogic::CardUpdate(GameState& state, float deltaTime)
+{
+
+}
+
+void GameLogic::ApplyDamageToPlayer(GameState& state, int damage, int playerindex) {
+	PlayerData& player = state.players[playerindex];
+
+	int px = player.pos.x + 2;
+	int py = 2 - player.pos.y;
+
+	for (int i = 0; i < GameState::GRID_SIZE; ++i) {
+		for (int j = 0; j < GameState::GRID_SIZE; ++j) {
+			if (state.mapData[i][j] == 2 && (py == i && px == j)) {
+
+				if (player.invincible) { // 무적
+					damage = 0;
+					player.invincible = false;
+				}
+				// 방어력 대비 피 다는거 계산
+				int defenseLost = 0;
+				int hpLost = 0;
+				int initialDefense = player.defence;
+
+				int damageDealt = player.defence - damage;
+				player.defence = (damageDealt > 0) ? damageDealt : 0;
+
+				if (damageDealt < 0) {
+					hpLost = -damageDealt;
+					player.hp -= hpLost;
+					if (player.hp < 0) player.hp = 0;
+				}
+
+				defenseLost = initialDefense - player.defence;
+			}
+		}
+	}
+
+
+}
+
+void GameLogic::ApplyDamageToBoss(GameState& state, int playerID, int rawDamage)
+{
+
+	if (state.boss.nodamageMode) {
+		rawDamage = 0;
+	}
+
+	bool iscutting = false;
+	iscutting = state.players[playerID].cutting;
+
+	int actualHpDamage = rawDamage;
+	int actualDefenseDamage = 0;
+
+	if (state.boss.defence > 0 && iscutting == false) {
+		actualDefenseDamage = rawDamage;
+		state.boss.defence -= rawDamage;
+
+		if (state.boss.defence < 0) {
+			actualHpDamage = -state.boss.defence;
+			state.boss.defence = 0;
+			actualDefenseDamage -= actualHpDamage;
+		}
+		else {
+			actualHpDamage = 0;
+		}
+		// 보스 방어력 감소 이펙트
+	}
+
+	state.boss.hp -= actualHpDamage;
+	if (state.boss.hp < 0) {
+		state.boss.hp = 0;
+	}
+	// 보스 체력 감소 이펙트
+
+	if (iscutting) {
+		state.players[playerID].cutting = false;
+	}
+}
+
+void GameLogic::ApplyDefenseToEnemy(GameState& state, int defense) {
+	state.boss.defence += defense;
+	// 보스 방어력 업 애니메이션
+}
+
+void GameLogic::HealBoss(GameState& state, int healAmount)
+{
+	state.boss.hp += healAmount;
+
+	if (state.boss.hp > 100) {
+		state.boss.hp = 100;
+	}
+	// 힐 이펙트
 }
