@@ -15,6 +15,8 @@
 #include <list>
 #include "resource.h"
 #include <mmsystem.h>
+#include <process.h>
+#include <queue>
 
 #define SERVERPORT 9000
 #define BUFSIZE    512
@@ -814,6 +816,16 @@ private:
 };
 
 SOCKET sock;
+HANDLE g_hSendThread;
+HANDLE g_hRecvThread;
+
+HANDLE g_hMutexGameState;
+HANDLE g_hMutexSendQueue;
+
+std::queue<GameState> g_SendQueue;
+
+HWND g_hWnd;
+
 void participateInMatch(bool ispvp) {
 	char buff[2] = { 2, ispvp };
 	int n = send(sock, buff, 2, 0);
@@ -821,6 +833,65 @@ void participateInMatch(bool ispvp) {
 		cout << "전송을 실패했습니다." << endl;
 		return;
 	}
+}
+
+unsigned __stdcall Send_Thread(void* arg)
+{
+	SOCKET sock = (SOCKET)arg;
+	GameState packetToSend;
+	bool bHasPacket = false;
+
+	while (true)
+	{
+		bHasPacket = false;
+		WaitForSingleObject(g_hMutexSendQueue, INFINITE);
+
+		if (!g_SendQueue.empty()) {
+			packetToSend = g_SendQueue.front();
+			g_SendQueue.pop();
+			bHasPacket = true;
+		}
+
+		ReleaseMutex(g_hMutexSendQueue);
+
+		if (bHasPacket) {
+			int retval = send(sock, (char*)&packetToSend, sizeof(GameState), 0); // 임시
+			// 프로토콜에 따른 값 보내기
+
+			if (retval == SOCKET_ERROR) {
+				break;
+			}
+		}
+		else {
+			Sleep(10); // 스레드 휴먼 : 큐 비어있을때 CPU 점유 방지
+		}
+	}
+	return 0;
+}
+
+unsigned __stdcall Recv_Thread(void* arg)
+{
+	SOCKET sock = (SOCKET)arg;
+	GameState receivedState;
+	int retval;
+
+	while (true)
+	{
+		retval = recv(sock, (char*)&receivedState, sizeof(GameState), MSG_WAITALL);
+
+		if (retval == SOCKET_ERROR || retval == 0) {
+			MessageBox(g_hWnd, L"서버와의 연결이 끊겼습니다.", L"접속 종료", MB_OK);
+			PostMessage(g_hWnd, WM_CLOSE, 0, 0);
+			break;
+		}
+
+		WaitForSingleObject(g_hMutexGameState, INFINITE);
+		// recv 받은 data GameState 갱신
+		ReleaseMutex(g_hMutexGameState);
+
+		InvalidateRect(g_hWnd, NULL, FALSE);
+	}
+	return 0;
 }
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdParam, int nCmdShow)
@@ -850,6 +921,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 		return 0;
 	}
 
+	g_hMutexGameState = CreateMutex(NULL, FALSE, NULL);
+	g_hMutexSendQueue = CreateMutex(NULL, FALSE, NULL);
+	if (g_hMutexGameState == NULL || g_hMutexSendQueue == NULL) {
+		cout << "뮤택스 생성 실패" << endl;
+		return 0;
+	}
+
 	HWND hWnd;
 	MSG Message;
 	WNDCLASSEX WndClass;
@@ -870,14 +948,34 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 	RegisterClassEx(&WndClass);
 
 	hWnd = CreateWindow(lpszClass, lpszWindowName, WS_OVERLAPPEDWINDOW, 100, 50, 1200, 800, NULL, (HMENU)NULL, hInstance, NULL);
+	g_hWnd = hWnd;
+
 	ShowWindow(hWnd, nCmdShow);
 	UpdateWindow(hWnd);
+
+	unsigned int sendThreadID, recvThreadID;
+
+	// Send_Thread
+	g_hSendThread = (HANDLE)_beginthreadex(NULL, 0, Send_Thread, (void*)sock, 0, &sendThreadID);
+	// Recv_Thread
+	g_hRecvThread = (HANDLE)_beginthreadex(NULL, 0, Recv_Thread, (void*)sock, 0, &recvThreadID);
+	if (g_hSendThread == 0 || g_hRecvThread == 0) {
+		MessageBox(hWnd, L"스레드 생성에 실패했습니다.", L"오류", MB_OK);
+		return 0;
+	}
 
 	while (GetMessage(&Message, 0, 0, 0)) {
 		TranslateMessage(&Message);
 		DispatchMessage(&Message);
 	}
 
+	CloseHandle(g_hSendThread);
+	CloseHandle(g_hRecvThread);
+
+	CloseHandle(g_hMutexGameState);
+	CloseHandle(g_hMutexGameState);
+
+	closesocket(sock);
 	WSACleanup();
 
 	return Message.wParam;
