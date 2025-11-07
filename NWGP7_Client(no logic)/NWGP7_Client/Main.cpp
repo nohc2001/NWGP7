@@ -973,7 +973,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 	CloseHandle(g_hRecvThread);
 
 	CloseHandle(g_hMutexGameState);
-	CloseHandle(g_hMutexGameState);
+	CloseHandle(g_hMutexSendQueue);
 
 	closesocket(sock);
 	WSACleanup();
