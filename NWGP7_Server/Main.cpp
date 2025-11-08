@@ -6,11 +6,130 @@
 #include <ws2tcpip.h>
 #include <vector>
 #include <mutex>
+#include <queue>
+#include <atomic>
 using namespace std;
 #pragma comment(lib, "ws2_32.lib")
 
 #define SERVERPORT 9000
 #define BUFSIZE    512
+
+enum ClientToServer_ProtocolType {
+	CTS_PT_KeyInput = 0,
+	CTS_PT_PlayCard = 1,
+	CTS_PT_Participant = 1,
+};
+
+struct OP {
+	int ptype;
+
+	struct OP_KEY {
+		char key;
+	};
+	struct OP_PLAYCARD {
+		int cardID;
+		int enemyID;
+		short pos_x;
+		short pos_y;
+	};
+	struct OP_PART {
+		bool ispvp;
+	};
+
+	union {
+		OP_KEY op_key;
+		OP_PLAYCARD op_playcard;
+		OP_PART op_part;
+	};
+
+	OP() {}
+	OP(const OP& n) {
+		ptype = n.ptype;
+		op_playcard.cardID = n.op_playcard.cardID;
+		op_playcard.enemyID = n.op_playcard.enemyID;
+		op_playcard.pos_x = n.op_playcard.pos_x;
+		op_playcard.pos_y = n.op_playcard.pos_y;
+	}
+};
+
+class QNode {
+public:
+	OP v;
+	QNode* next;
+
+	QNode() {
+		v.ptype = -1;
+		next = nullptr;
+	}
+
+	QNode(OP V, QNode* nextptr) {
+		v = V;
+		next = nextptr;
+	}
+};
+
+class CoarseGainQueue {
+public:
+	mutex mut;
+	QNode* head;
+	QNode* tail;
+
+	CoarseGainQueue() {
+		head = new QNode();
+		tail = head;
+	}
+
+	void enq(OP v) {
+		QNode* node = new QNode(v, nullptr);
+		mut.lock();
+		tail->next = node;
+		tail = node;
+		mut.unlock();
+	}
+
+	OP deq() {
+		mut.lock();
+		OP r;
+		r.ptype = -1;
+		if (head->next == nullptr) {
+			mut.unlock();
+			return r;
+		}
+		r = head->next->v;
+		QNode* qn = head->next;
+		delete head;
+		head = qn;
+		mut.unlock();
+		return r;
+	}
+
+	void clear() {
+		mut.lock();
+		QNode* node = head->next;
+		while (node != nullptr) {
+			QNode* qn = node;
+			node = node->next;
+			delete qn;
+		}
+		head->next = nullptr;
+		head->v.ptype = -1;
+		tail = head;
+		mut.unlock();
+	}
+
+	void print20() {
+		//int cnt = 0;
+		//QNode* node = head->next;
+		//while (node != nullptr) {
+		//	printf("%d ", node->v);
+		//	node = node->next;
+
+		//	cnt += 1;
+		//	if (cnt > 20) break;
+		//}
+		//printf("\n");
+	}
+};
 
 void err_quit(const char* msg)
 {
@@ -166,12 +285,33 @@ struct ClientLocalParam {
 	int thread_id;
 	SOCKET sock;
 };
+
+struct BattleData {
+	CoarseGainQueue OPQueue;
+	int clientsID[3] = {};
+	HANDLE hBattleThread;
+};
+
+struct ClientData {
+	HANDLE hThread;
+	ClientLocalParam param;
+	BattleData* bd = nullptr;
+};
+
+ClientData clients[128] = {};
+int thread_id_up = 0;
+BattleData battles[128] = {};
+int battle_id_up = 0;
+
+thread_local ClientData* clientData;
 DWORD WINAPI ProcessClient(LPVOID arg) 
 {
 	int retval;
 	ClientLocalParam* param = (ClientLocalParam*)arg;
-	threadID = param->thread_id;
-	SOCKET client_sock = (SOCKET)param->sock;
+	clientData = &clients[param->thread_id];
+	memcpy_s(&clientData->param, sizeof(ClientLocalParam), param, sizeof(ClientLocalParam));
+	
+	SOCKET client_sock = (SOCKET)clientData->param.sock;
 	struct sockaddr_in clientaddr;
 	char addr[INET_ADDRSTRLEN];
 	int addrlen;
@@ -188,14 +328,30 @@ DWORD WINAPI ProcessClient(LPVOID arg)
 		if (recv_siz > 0) {
 			switch(buff[0]) {
 			case 0: // 사용자 키보드 입력 정보를 서버에 알리는 프로토콜
+			{
+				OP op;
+				op.ptype = CTS_PT_KeyInput;
+				op.op_key.key = buff[1];
+				clientData->bd->OPQueue.enq(op);
+			}
 				break;
 			case 1: // 사용한 카드의 정보를 서버에 알리는 프로토콜
+			{
+				OP op;
+				op.ptype = CTS_PT_PlayCard;
+				op.op_playcard.cardID = *(int*)&buff[1];
+				op.op_playcard.enemyID = *(int*)&buff[5];
+				op.op_playcard.pos_x = *(short*)&buff[9];
+				op.op_playcard.pos_y = *(short*)&buff[11];
+				clientData->bd->OPQueue.enq(op);
+			}
 				break;
 			case 2: // 클라이언트가 게임에 참여한다는걸 알리는 프로토콜
 			{
+				//CTS_PT_Participant;
 				if (isParticipant == false) {
 					TryMatch tm;
-					tm.client_id = threadID;
+					tm.client_id = clientData->param.thread_id;
 					tm.is_pvp = buff[1];
 					matchMutex.lock();
 					MatchingArr.push_back(tm);
@@ -215,6 +371,34 @@ DWORD WINAPI ProcessClient(LPVOID arg)
 	closesocket(client_sock);
 	printf("[NWGP7 서버] 클라이언트 종료: IP 주소=%s, 포트 번호=%d\n", addr, ntohs(clientaddr.sin_port));
 	return 0;
+}
+
+void ExecuteOP(BattleData& bd) {
+	// get op
+	OP op = bd.OPQueue.deq();
+	while (op.ptype >= 0) {
+		// Executing Code
+		printf("optype : %d - key : %c \n", op.ptype, op.op_key.key);
+
+		//next op
+		op = bd.OPQueue.deq();
+	}
+}
+
+void TimeBasedUpdate(BattleData& bd, float deltaTime) {
+
+}
+
+DWORD WINAPI ProcessBattle(LPVOID arg) {
+	BattleData& bd = *(BattleData*)arg;
+
+	// battleupdate
+	while (1) {
+		ExecuteOP(bd);
+		
+		const float deltaTime = 0.017; // temp delta time;
+		TimeBasedUpdate(bd, deltaTime);
+	}
 }
 
 DWORD WINAPI ProcessMatching(LPVOID arg) {
@@ -267,8 +451,24 @@ DWORD WINAPI ProcessMatching(LPVOID arg) {
 
 		if (matching_raid) {
 			// 방을 만들어 클라이언트에게 게임을 제공한다.
+			ClientData& c0 = clients[raid_clientsid[0]->client_id];
+			ClientData& c1 = clients[raid_clientsid[1]->client_id];
+			ClientData& c2 = clients[raid_clientsid[2]->client_id];
+
+			battles[battle_id_up].clientsID[0] = raid_clientsid[0]->client_id;
+			battles[battle_id_up].clientsID[1] = raid_clientsid[1]->client_id;
+			battles[battle_id_up].clientsID[2] = raid_clientsid[2]->client_id;
+
+			battles[battle_id_up].OPQueue.clear();
+			battles[battle_id_up].hBattleThread = CreateThread(NULL, 0, ProcessBattle, (LPVOID)&battles[battle_id_up], 0, NULL);
+
+			c0.bd = &battles[battle_id_up];
+			c1.bd = &battles[battle_id_up];
+			c2.bd = &battles[battle_id_up];
+			battle_id_up += 1;
 
 			printf("matching! client %d, %d, %d", raid_clientsid[0]->client_id, raid_clientsid[1]->client_id, raid_clientsid[2]->client_id);
+
 			for (int i = 0; i < 3; ++i) {
 				raid_clientsid[i]->client_id = -1;
 			}
@@ -277,7 +477,7 @@ DWORD WINAPI ProcessMatching(LPVOID arg) {
 	}
 }
 
-int main(int argc, char* argv[]) 
+int main(int argc, char* argv[])
 {
 	HANDLE hMatchingThread;
 	hMatchingThread = CreateThread(NULL, 0, ProcessMatching, (LPVOID)0, 0, NULL);
@@ -310,8 +510,7 @@ int main(int argc, char* argv[])
 	SOCKET client_sock;
 	struct sockaddr_in clientaddr;
 	int addrlen;
-	HANDLE hThread[128] = {};
-	int thread_id_up = 0;
+	
 	while (1) {
 		// 새로 접속하는 클라이언트 처리
 		addrlen = sizeof(clientaddr);
@@ -328,17 +527,17 @@ int main(int argc, char* argv[])
 		ClientLocalParam* param = new ClientLocalParam();
 		param->sock = client_sock;
 		param->thread_id = thread_id_up;
-		hThread[thread_id_up] = CreateThread(NULL, 0, ProcessClient, (LPVOID)param, 0, NULL);
+		clients[thread_id_up].hThread = CreateThread(NULL, 0, ProcessClient, (LPVOID)param, 0, NULL);
 
-		if (hThread[thread_id_up] == NULL) {
+		if (clients[thread_id_up].hThread == NULL) {
 			closesocket(client_sock);
-			CloseHandle(hThread[thread_id_up]);
+			CloseHandle(clients[thread_id_up].hThread);
 		}
 		else thread_id_up += 1;
 	}
 
 	for (int i = 0; i < thread_id_up;++i) {
-		CloseHandle(hThread[i]);
+		CloseHandle(clients[i].hThread);
 	}
 
 	WSACleanup();
