@@ -760,6 +760,7 @@ public:
 	void HandleLButtonDown(const GameState& state, PresentationState& pState, int x, int y, HWND hWnd);
 	void HandleLButtonUp(const GameState& state, PresentationState& pState, int x, int y, HWND hWnd);
 	void OnServerEvent(PresentationState& pState /*eventPacket*/);
+	void PlayCard(int cardID, int enemyID, short gridX, short gridY);
 };
 
 class Renderer {
@@ -804,15 +805,42 @@ public:
 
 static Game g_Game;
 
-class GameRoom {
-public:
-	//여기에 함수 추가
+enum ClientToServer_ProtocolType {
+	CTS_PT_KeyInput = 0,
+	CTS_PT_PlayCard = 1,
+	CTS_PT_Participant = 1,
+};
 
-private:
-	int RoomId;
-	GameState State;
-	//GameLogic Logic;
-	Renderer Renderer;
+struct OP {
+	int ptype;
+
+	struct OP_KEY {
+		char key;
+	};
+	struct OP_PLAYCARD {
+		int cardID;
+		int enemyID;
+		short pos_x;
+		short pos_y;
+	};
+	struct OP_PART {
+		bool ispvp;
+	};
+
+	union {
+		OP_KEY op_key;
+		OP_PLAYCARD op_playcard;
+		OP_PART op_part;
+	};
+
+	OP() {}
+	OP(const OP& n) {
+		ptype = n.ptype;
+		op_playcard.cardID = n.op_playcard.cardID;
+		op_playcard.enemyID = n.op_playcard.enemyID;
+		op_playcard.pos_x = n.op_playcard.pos_x;
+		op_playcard.pos_y = n.op_playcard.pos_y;
+	}
 };
 
 SOCKET sock;
@@ -822,7 +850,7 @@ HANDLE g_hRecvThread;
 HANDLE g_hMutexGameState;
 HANDLE g_hMutexSendQueue;
 
-std::queue<GameState> g_SendQueue;
+std::queue< std::vector<char> > g_SendQueue;
 
 HWND g_hWnd;
 
@@ -838,7 +866,7 @@ void participateInMatch(bool ispvp) {
 unsigned __stdcall Send_Thread(void* arg)
 {
 	SOCKET sock = (SOCKET)arg;
-	GameState packetToSend;
+	std::vector<char> packetToSend;
 	bool bHasPacket = false;
 
 	while (true)
@@ -855,7 +883,7 @@ unsigned __stdcall Send_Thread(void* arg)
 		ReleaseMutex(g_hMutexSendQueue);
 
 		if (bHasPacket) {
-			int retval = send(sock, (char*)&packetToSend, sizeof(GameState), 0); // 임시
+			int retval = send(sock, packetToSend.data(), packetToSend.size(), 0); // 임시
 			// 프로토콜에 따른 값 보내기
 
 			if (retval == SOCKET_ERROR) {
@@ -1281,7 +1309,7 @@ void ClientLogic::HandleLButtonUp(const GameState& state, PresentationState& pSt
 				else if (i == 4) { pState.hand[i].x = 900; pState.hand[i].y = 700; }
 
 				if (pState.enermytouch) { // 카드 발동
-					//PlayCard(state, i); -> 서버에 카드 ID 전송
+					//PlayCard(pState.hand[i].id, )
 				}
 				pState.hand[i].drag = false;
 			}
@@ -1297,7 +1325,7 @@ void ClientLogic::HandleLButtonUp(const GameState& state, PresentationState& pSt
 				else if (i == 4) { pState.hand[i].x = 900; pState.hand[i].y = 700; }
 
 				if (pState.enermytouch) { // 카드 발동
-					//PlayCard(state, i); -> 서버에 카드 ID 전송
+					//PlayCard(pState.hand[i].id, )
 				}
 				pState.hand[i].drag = false;
 			}
@@ -1430,6 +1458,27 @@ void ClientLogic::OnServerEvent(PresentationState& pState)
         }
 	*/
 
+}
+
+void ClientLogic::PlayCard(int cardID, int enemyID, short gridX, short gridY)
+{
+	OP packet;
+	packet.ptype = CTS_PT_PlayCard;
+	packet.op_playcard.cardID = cardID;
+	packet.op_playcard.enemyID = enemyID;
+	packet.op_playcard.pos_x = gridX;
+	packet.op_playcard.pos_y = gridY;
+
+	std::vector<char> buffer(13);
+	buffer[0] = 1;
+	memcpy(&buffer[1], &cardID, sizeof(int));
+	memcpy(&buffer[5], &enemyID, sizeof(int));
+	memcpy(&buffer[9], &gridX, sizeof(short));
+	memcpy(&buffer[11], &gridY, sizeof(short));
+
+	WaitForSingleObject(g_hMutexSendQueue, INFINITE);
+	g_SendQueue.push(buffer);
+	ReleaseMutex(g_hMutexSendQueue);
 }
 
 void PresentationState::Initialize()
