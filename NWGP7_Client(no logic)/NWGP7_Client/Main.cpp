@@ -215,6 +215,8 @@ struct PlayerPresentation {
 	}
 };
 
+struct GameState;
+
 struct ThrowCard {
 	static constexpr int monsterPos = -2147483648;
 	static constexpr int playerPos[3] = { -2147483647, -2147483646, -2147483645 };
@@ -915,6 +917,7 @@ unsigned __stdcall Recv_Thread(void* arg)
 
 		WaitForSingleObject(g_hMutexGameState, INFINITE);
 		// recv 받은 data GameState 갱신
+
 		ReleaseMutex(g_hMutexGameState);
 
 		InvalidateRect(g_hWnd, NULL, FALSE);
@@ -1524,6 +1527,21 @@ void PresentationState::Initialize()
 
 void PresentationState::Update(float deltaTime, const GameState& gameState)
 {
+	for (int i = 0; i < GameState::playerCount; ++i) {
+		const PlayerData& serverPlayer = gameState.players[i];
+		PlayerPresentation& visualPlayer = this->players[i];
+
+		visualPlayer.UpdataPosition(serverPlayer.pos);
+
+		if (serverPlayer.invincible && !visualPlayer.effect_anim_data.holiShild) {
+			visualPlayer.effect_anim_data.holiShild = true;
+			visualPlayer.effect_anim_data.holiShildcount = 0;
+		}
+		else if (!serverPlayer.invincible) {
+			visualPlayer.effect_anim_data.holiShild = false;
+		}
+	}
+
 	CardUpdate(deltaTime, gameState);
 
 	if (droww) { // 카드 덱 뽑기 모션
@@ -2437,7 +2455,7 @@ void Renderer::DrawEffects(HDC hdc, HDC imgDC, const GameState& state, const Pre
 		hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitSniper[pState.snipercount]);
 		TransparentBlt(hdc, pState.boss.x - 50, pState.boss.y - 100, 200, 200, imgDC, 0, 0, assets.sniperWidth, assets.sniperHeight, RGB(255, 255, 255));
 	}
-	// 일격 이펙트
+	// 일격 이펙트p
 	if (pState.One) {
 		hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitOne[pState.Onecount]);
 		TransparentBlt(hdc, pState.boss.x - 300, pState.boss.y - 100, 600, 200, imgDC, 0, 0, assets.OneWidth, assets.OneHeight, RGB(255, 255, 255));
@@ -2450,7 +2468,7 @@ void Renderer::DrawEffects(HDC hdc, HDC imgDC, const GameState& state, const Pre
 
 	//$Chang
 	for (int i = 0; i < GameState::playerCount; ++i) {
-		PlayerPresentation& p = pState.player[i];
+		const PlayerPresentation& p = pState.players[i];
 		// 방어 이펙트
 		if (p.effect_anim_data.tekai) {
 			hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBittekai[p.effect_anim_data.tekaicount]);
