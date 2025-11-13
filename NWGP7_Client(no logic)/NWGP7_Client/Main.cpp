@@ -17,6 +17,7 @@
 #include <mmsystem.h>
 #include <process.h>
 #include <queue>
+#include <mutex>
 
 #define SERVERPORT 9000
 #define BUFSIZE    512
@@ -213,8 +214,6 @@ struct PlayerPresentation {
 		y = MapCenterY - serverPos.y * MapMoveMargin;
 	}
 };
-
-class GameState;
 
 struct ThrowCard {
 	static constexpr int monsterPos = -2147483648;
@@ -755,6 +754,7 @@ public:
 
 class ClientLogic {
 public:
+	bool ConnectToServerAndStart(HWND hWnd);
 	void HandleChar(WPARAM wParam, HWND hWnd);
 	void HandleMouseMove(const GameState& state, PresentationState& pState, int x, int y, HWND hWnd);
 	void HandleLButtonDown(const GameState& state, PresentationState& pState, int x, int y, HWND hWnd);
@@ -808,7 +808,7 @@ static Game g_Game;
 enum ClientToServer_ProtocolType {
 	CTS_PT_KeyInput = 0,
 	CTS_PT_PlayCard = 1,
-	CTS_PT_Participant = 1,
+	CTS_PT_Participant = 2,
 };
 
 struct OP {
@@ -922,38 +922,14 @@ unsigned __stdcall Recv_Thread(void* arg)
 	return 0;
 }
 
+char* SERVERIP = (char*)"127.0.0.1";
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdParam, int nCmdShow)
 {
-	char* SERVERIP = (char*)"127.0.0.1";
-	int retval;
 
 	WSADATA wsa;
 	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
 		return 1;
-	}
-
-	sock = socket(AF_INET, SOCK_STREAM, 0);
-	if (sock == INVALID_SOCKET) {
-		cout << "소켓 생성에 실패했습니다." << endl;
-		return 0;
-	}
-
-	struct sockaddr_in serveraddr;
-	memset(&serveraddr, 0, sizeof(serveraddr));
-	serveraddr.sin_family = AF_INET;
-	inet_pton(AF_INET, SERVERIP, &serveraddr.sin_addr);
-	serveraddr.sin_port = htons(SERVERPORT);
-	retval = connect(sock, (struct sockaddr*)&serveraddr, sizeof(serveraddr));
-	if (retval == SOCKET_ERROR) {
-		cout << "서버 접속에 실패했습니다." << endl;
-		return 0;
-	}
-
-	g_hMutexGameState = CreateMutex(NULL, FALSE, NULL);
-	g_hMutexSendQueue = CreateMutex(NULL, FALSE, NULL);
-	if (g_hMutexGameState == NULL || g_hMutexSendQueue == NULL) {
-		cout << "뮤택스 생성 실패" << endl;
-		return 0;
 	}
 
 	HWND hWnd;
@@ -981,29 +957,17 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdPa
 	ShowWindow(hWnd, nCmdShow);
 	UpdateWindow(hWnd);
 
-	unsigned int sendThreadID, recvThreadID;
-
-	// Send_Thread
-	g_hSendThread = (HANDLE)_beginthreadex(NULL, 0, Send_Thread, (void*)sock, 0, &sendThreadID);
-	// Recv_Thread
-	g_hRecvThread = (HANDLE)_beginthreadex(NULL, 0, Recv_Thread, (void*)sock, 0, &recvThreadID);
-	if (g_hSendThread == 0 || g_hRecvThread == 0) {
-		MessageBox(hWnd, L"스레드 생성에 실패했습니다.", L"오류", MB_OK);
-		return 0;
-	}
-
 	while (GetMessage(&Message, 0, 0, 0)) {
 		TranslateMessage(&Message);
 		DispatchMessage(&Message);
 	}
 
-	CloseHandle(g_hSendThread);
-	CloseHandle(g_hRecvThread);
+	if (g_hSendThread) CloseHandle(g_hSendThread);
+	if (g_hRecvThread) CloseHandle(g_hRecvThread);
+	if (g_hMutexGameState) CloseHandle(g_hMutexGameState);
+	if (g_hMutexSendQueue) CloseHandle(g_hMutexSendQueue);
 
-	CloseHandle(g_hMutexGameState);
-	CloseHandle(g_hMutexSendQueue);
-
-	closesocket(sock);
+	if (sock != INVALID_SOCKET) closesocket(sock);
 	WSACleanup();
 
 	return Message.wParam;
@@ -1165,6 +1129,53 @@ void Game::OnKeyUp(WPARAM wParam)
 	}
 }
 
+bool ClientLogic::ConnectToServerAndStart(HWND hWnd)
+{
+	if (sock != 0 && sock != INVALID_SOCKET) {
+		return true;
+	}
+
+	int retval;
+	sock = socket(AF_INET, SOCK_STREAM, 0);
+	if (sock == INVALID_SOCKET) {
+		MessageBox(hWnd, L"소켓 생성 실패", L"오류", MB_OK);
+		return false;
+	}
+
+	struct sockaddr_in serveraddr;
+	memset(&serveraddr, 0, sizeof(serveraddr));
+	serveraddr.sin_family = AF_INET;
+	inet_pton(AF_INET, SERVERIP, &serveraddr.sin_addr);
+	serveraddr.sin_port = htons(SERVERPORT);
+	retval = connect(sock, (struct sockaddr*)&serveraddr, sizeof(serveraddr));
+	
+	if (retval == SOCKET_ERROR) {
+		MessageBox(hWnd, L"서버 접속 실패", L"오류", MB_OK);
+		closesocket(sock);
+		sock = INVALID_SOCKET;
+		return false;
+	}
+
+	g_hMutexGameState = CreateMutex(NULL, FALSE, NULL);
+	g_hMutexSendQueue = CreateMutex(NULL, FALSE, NULL);
+	if (g_hMutexGameState == NULL || g_hMutexSendQueue == NULL) {
+		MessageBox(hWnd, L"뮤텍스 생성 실패", L"오류", MB_OK);
+		return 0;
+	}
+
+	unsigned int sendThreadID, recvThreadID;
+	// Send_Thread
+	g_hSendThread = (HANDLE)_beginthreadex(NULL, 0, Send_Thread, (void*)sock, 0, &sendThreadID);
+	// Recv_Thread
+	g_hRecvThread = (HANDLE)_beginthreadex(NULL, 0, Recv_Thread, (void*)sock, 0, &recvThreadID);
+	if (g_hSendThread == 0 || g_hRecvThread == 0) {
+		MessageBox(hWnd, L"스레드 생성에 실패했습니다.", L"오류", MB_OK);
+		return 0;
+	}
+
+	return true;
+}
+
 void ClientLogic::HandleChar(WPARAM wParam, HWND hWnd)
 {
 	if (wParam == 'q') { // 종료
@@ -1241,17 +1252,27 @@ void ClientLogic::HandleMouseMove(const GameState& state, PresentationState& pSt
 void ClientLogic::HandleLButtonDown(const GameState& state, PresentationState& pState, int x, int y, HWND hWnd)
 {
 	if (pState.StartScreen) {
+		bool connectSucess = false;
 		if (x >= 900 && x <= 1150 && y >= 450 && y <= 500) { // pvp
-			pState.StartScreen = false;
-			//state.PvEMode = false; // 서버에 pvp모드로 한다고 전달
-			//StartBattle(state);
-			participateInMatch(true);
+			connectSucess = ConnectToServerAndStart(hWnd);
+			if (connectSucess) {
+				participateInMatch(true);
+				pState.StartScreen = false;
+			}
+			else {
+				pState.StartScreen = true;
+			}
+			
 		}
 		if (x >= 900 && x <= 1150 && y >= 530 && y <= 580) { // 레이드
-			pState.StartScreen = false;
-			//state.PvEMode = true; // 서버에 pve 모드로 한다고 전달
-			//StartBattle(state);
-			participateInMatch(false);
+			connectSucess = ConnectToServerAndStart(hWnd);
+			if (connectSucess) {
+				participateInMatch(false);
+				pState.StartScreen = false;
+			}
+			else {
+				pState.StartScreen = true;
+			}
 		}
 		if (x >= 900 && x <= 1150 && y >= 610 && y <= 660) PostQuitMessage(0); // 게임종료
 	}
