@@ -2166,6 +2166,20 @@ void Renderer::DrawHUD(HDC hdc, const GameState& state, const PresentationState&
 	HPEN hPen, oldPen;
 
 	if (!pState.StartScreen) {
+		if (state.player == nullptr)
+		{
+			hFont = CreateFont(100, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET,
+				OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+				DEFAULT_PITCH | FF_SWISS, L"Arial");
+			hOldFont = (HFONT)SelectObject(hdc, hFont);
+			SetBkMode(hdc, TRANSPARENT);
+			SetTextColor(hdc, RGB(255, 255, 255)); 
+			TextOut(hdc, 400, 350, L"¸ÅÄª Áß...", 6);
+			SelectObject(hdc, hOldFont);
+			DeleteObject(hFont);
+
+			return;
+		}
 		if (pState.startstart) {
 			hFont = CreateFont(200, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET,
 				OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
