@@ -21,8 +21,48 @@ enum ClientToServer_ProtocolType {
 
 };
 
+enum PlayerSyncBase {
+	SYNC_HP = 0,
+	SYNC_MAX_MANA = 1,
+	SYNC_MANA = 2,
+	SYNC_DEFFENCE = 3,
+	SYNC_ATTACK = 4,
+	SYNC_POS = 5,
+
+	SYNC_HAND_SLOT_0 = 9,
+	SYNC_HAND_SLOT_1 = 10,
+	SYNC_HAND_SLOT_2 = 11,
+	SYNC_HAND_SLOT_3 = 12,
+	SYNC_HAND_SLOT_4 = 13,
+
+	SYNC_PLAYER_DEATH = 14,
+	SYNC_CUTTING = 15,
+	SYNC_INVINCIBLE = 16,
+	SYNC_IS_CASTING_ONEPUNCH = 17,
+	SYNC_ONEPUNCH_TIMER = 18,
+	SYNC_ONEPUNCH_DAMAGE = 19,
+	SYNC_PARING_MOMENT = 20,
+
+};
+
+const int PLAYER_SYNC_STRIDE = 32;
+
 enum ServerToClient_ProtocolType {
-	STC_PT_Gameinit = 0,
+
+	// Game Event
+	STC_PT_ThrowCard = 96,
+	STC_PT_Effect_Event = 97,
+	STC_PT_Effect_Pos = 98,
+
+	// Game Init
+	STC_PT_InitGame = 99,
+
+	// boss sync
+	STC_Sync_Boss_Defence = 100,
+	STC_Sync_Boss_Hp = 101,
+	STC_Sync_Boss_Death = 102,
+	STC_Sync_Boss_Awakening = 103,
+	STC_Sync_Boss_ID = 104,
 
 };
 
@@ -183,7 +223,6 @@ struct Pos {
 
 struct BossData {
 	int defence = 0;
-	int stage = 0;
 	int hp = 100;
 	bool death = false;
 	bool bossAwakening = false;
@@ -232,8 +271,8 @@ public:
 	static constexpr int playerCount = 3;
 	PlayerData players[playerCount]; // players data
 
-	static constexpr int clientindex = 0;
-	PlayerData* player = &player[clientindex]; // client's player
+	//static constexpr int clientindex = 0;
+	//PlayerData* player = &player[clientindex]; // client's player
 
 	BossData boss; // boss data
 
@@ -250,35 +289,37 @@ class GameLogic {
 public:
 	void Initialize(GameState& state);
 
-	void Update(GameState& state);
+	void Update(GameState& state, BattleData& bd);
 
-	void UpdatePvE(GameState& state, float deltaTime);
-	void UpdatePvP(GameState& state, float deltaTime);
+	void UpdatePvE(GameState& state, float deltaTime, BattleData& bd);
+	void UpdatePvP(GameState& state, float deltaTime, BattleData& bd);
 
 	void CheckWinLossConditionsPvP(GameState& state);
 	void CheckWinLossConditionsPvE(GameState& state);
 
 	void AttackWarning(GameState& state);
-	void AttackOnRandomGreed(GameState& state, int damage);
+	void AttackOnRandomGreed(GameState& state, int damage, BattleData& bd);
 	void MapStateRepare(GameState& state);
 
 	// if realtime
-	void UpdateBattle_RealTime(GameState& state, float deltaTime);
-	void ExecuteEnemyAI(GameState& state, float deltaTime);
+	void GameInit(SOCKET sock, const GameState& state, int playerindex, PlayerData& pdata);
+	void UpdateBattle_RealTime(GameState& state, float deltaTime, BattleData& bd);
+	void ExecuteEnemyAI(GameState& state, float deltaTime, BattleData& bd);
 	void UpdateBuffsAndTimers(GameState& state, float deltaTime);
 
 	void StartBattle(GameState& state); // 맵에서 전투 시작
-	void PlayCard(GameState& state, int cardIndex, int playerindex = 0); // 카드 사용
-	void PlayCardLogic(GameState& state, int cardID, int playerindex = 0, bool usedByMonster = false); // 카드 사용
+	void PlayCard(GameState& state, int cardIndex, int playerindex = 0, BattleData& bd); // 카드 사용
+	void PlayCardLogic(GameState& state, int cardID, int playerindex = 0, bool usedByMonster = false, BattleData& bd); // 카드 사용
 
-	void CardUpdate(GameState& state, float deltaTime);
+	void CardUpdate(GameState& state, float deltaTime, BattleData& bd);
 
-	void ApplyDamageToPlayer(GameState& state, int damage, int playerindex = 0);
-	void ApplyDamageToBoss(GameState& state, int playerID, int rawDamage);
-	void ApplyDefenseToEnemy(GameState& state, int defense);
-	void HealBoss(GameState& state, int healAmount);
+	void ApplyDamageToPlayer(GameState& state, int damage, int playerindex, BattleData& bd);
+	void ApplyDamageToBoss(GameState& state, int playerID, int rawDamage, BattleData& bd);
+	void ApplyDefenseToEnemy(GameState& state, int defense, BattleData& bd);
+	void HealBoss(GameState& state, int healAmount, BattleData& bd);
 
-	void GameInit(SOCKET sock, const GameState& state, int playerindex, PlayerData& pdata);
+	void RecordSTCPacket(BattleData& bd, char type, void* data, int dataSize);
+
 };
 
 struct TryMatch {
@@ -301,6 +342,12 @@ struct BattleData {
 	CoarseGainQueue OPQueue;
 	int clientsID[3] = {};
 	HANDLE hBattleThread;
+
+	GameState gameState;
+	GameLogic gameLogic;
+
+	queue<vector<char>> STCQueue;
+	mutex STCQueueMutex;
 };
 
 struct ClientData {
@@ -489,6 +536,7 @@ DWORD WINAPI ProcessMatching(LPVOID arg) {
 			battles[battle_id_up].clientsID[1] = raid_clientsid[1]->client_id;
 			battles[battle_id_up].clientsID[2] = raid_clientsid[2]->client_id;
 
+			battles[battle_id_up].gameState.PvEMode = true;
 			battles[battle_id_up].OPQueue.clear();
 			battles[battle_id_up].hBattleThread = CreateThread(NULL, 0, ProcessBattle, (LPVOID)&battles[battle_id_up], 0, NULL);
 
@@ -578,7 +626,7 @@ void GameLogic::Initialize(GameState& state)
 {
 	srand((unsigned int)time(NULL));
 
-	state.player = &state.players[0];
+	//state.player = &state.players[0];
 
 	for (int i = 0; i < 3; ++i) { // 3 플레이어 초기화
 
@@ -601,28 +649,28 @@ void GameLogic::Initialize(GameState& state)
 	}
 }
 
-void GameLogic::Update(GameState& state)
+void GameLogic::Update(GameState& state, BattleData& bd)
 {
 	if (state.PvEMode) {
 		float deltaTime = 0.017f;
-		UpdatePvE(state, deltaTime); // 레이드
+		UpdatePvE(state, deltaTime, bd); // 레이드
 	}
 	else {
 		float deltaTime = 0.017f;
-		UpdatePvP(state, deltaTime); // pvp
+		UpdatePvP(state, deltaTime, bd); // pvp
 	}
 }
 
-void GameLogic::UpdatePvE(GameState& state, float deltaTime)
+void GameLogic::UpdatePvE(GameState& state, float deltaTime, BattleData& bd)
 {
 	CheckWinLossConditionsPvE(state);
-	UpdateBattle_RealTime(state, deltaTime);
+	UpdateBattle_RealTime(state, deltaTime, bd);
 }
 
-void GameLogic::UpdatePvP(GameState& state, float deltaTime)
+void GameLogic::UpdatePvP(GameState& state, float deltaTime, BattleData& bd)
 {
 	CheckWinLossConditionsPvP(state);
-	UpdateBattle_RealTime(state, deltaTime);
+	UpdateBattle_RealTime(state, deltaTime, bd);
 }
 
 void GameLogic::CheckWinLossConditionsPvE(GameState& state)
@@ -663,7 +711,7 @@ void GameLogic::AttackWarning(GameState& state)
 	}
 }
 
-void GameLogic::AttackOnRandomGreed(GameState& state, int damage)
+void GameLogic::AttackOnRandomGreed(GameState& state, int damage, BattleData& bd)
 {
 	for (int i = 0; i < GameState::GRID_SIZE; ++i) {
 		for (int j = 0; j < GameState::GRID_SIZE; ++j) {
@@ -672,7 +720,7 @@ void GameLogic::AttackOnRandomGreed(GameState& state, int damage)
 			}
 		}
 	}
-	ApplyDamageToPlayer(state, damage, 0); // 데미지 15
+	ApplyDamageToPlayer(state, damage, 0, bd); // 데미지 15
 }
 
 void GameLogic::MapStateRepare(GameState& state)
@@ -684,7 +732,7 @@ void GameLogic::MapStateRepare(GameState& state)
 	}
 }
 
-void GameLogic::ExecuteEnemyAI(GameState& state, float deltaTime)
+void GameLogic::ExecuteEnemyAI(GameState& state, float deltaTime, BattleData& bd)
 {
 	// 스테이지 1 슬라임 패턴
 	if (state.boss.id == 0) { // 데미지 0~5
@@ -696,7 +744,7 @@ void GameLogic::ExecuteEnemyAI(GameState& state, float deltaTime)
 		else if (state.boss.attackState == 1) {
 			state.boss.attackState = 2;
 			state.boss.currentStateDuration = 1.0f; //공격
-			AttackOnRandomGreed(state, 5);
+			AttackOnRandomGreed(state, 5, bd);
 		}
 		else if (state.boss.attackState == 2) {
 			state.boss.attackState = 0;
@@ -799,7 +847,41 @@ void GameLogic::ExecuteEnemyAI(GameState& state, float deltaTime)
 	//}
 }
 
-void GameLogic::UpdateBattle_RealTime(GameState& state, float deltaTime)
+void GameLogic::GameInit(SOCKET sock, const GameState& state, int playerindex, PlayerData& pdata)
+{
+	char buf[64] = {};
+	int offset = 0;
+
+	//buf[offset++] = STC_PT_Gameinit;          // type
+	buf[offset++] = state.PvEMode ? 1 : 0;
+	buf[offset++] = (uint8_t)playerindex;
+
+	//boss info
+	*(int32_t*)&buf[offset] = state.boss.id;      offset += 4;
+	*(int32_t*)&buf[offset] = state.boss.hp;      offset += 4;
+	*(int32_t*)&buf[offset] = state.boss.defence; offset += 4;
+
+	//player info
+	for (int i = 0; i < GameState::playerCount; ++i) {
+		buf[offset++] = (uint8_t)state.players[i].hp;
+		buf[offset++] = (uint8_t)state.players[i].mana;
+	}
+
+	//card info
+	uint8_t handCount = 5;
+	buf[offset++] = handCount;
+
+	for (int i = 0; i < handCount; ++i) {
+		int cardId = pdata.hand[i].id;                 // state에서 읽기
+		memcpy(&buf[offset], &cardId, sizeof(int)); // buf에 쓰기
+		offset += sizeof(int);
+	}
+
+	send(sock, buf, offset, 0);
+
+}
+
+void GameLogic::UpdateBattle_RealTime(GameState& state, float deltaTime, BattleData& bd)
 {
 	//CardUpdate(state, deltaTime);
 
@@ -821,7 +903,7 @@ void GameLogic::UpdateBattle_RealTime(GameState& state, float deltaTime)
 				p.isCastingOnePunch = false;
 				p.onePunchCastTimer = 0.0f;
 
-				ApplyDamageToBoss(state, i, p.onePunchStoredDamage);
+				ApplyDamageToBoss(state, i, p.onePunchStoredDamage, bd);
 				p.onePunchStoredDamage = 0;
 
 				// 일격 & 지진 이펙트 활성화
@@ -839,7 +921,7 @@ void GameLogic::UpdateBattle_RealTime(GameState& state, float deltaTime)
 		if (state.boss.attackTimer > bossAttackDelay && !state.boss.death) { // 턴 시작
 			state.boss.attackTimer = 0;
 			// 카드 드로우 애니메이션 draww = true
-			ExecuteEnemyAI(state, deltaTime);
+			ExecuteEnemyAI(state, deltaTime, bd);
 		}
 	}
 
@@ -925,7 +1007,7 @@ void GameLogic::StartBattle(GameState& state)
 	}
 }
 
-void GameLogic::PlayCard(GameState& state, int playerIndex, int cardIndex) {
+void GameLogic::PlayCard(GameState& state, int playerIndex, int cardIndex, BattleData& bd) {
 	PlayerData& player = state.players[playerIndex];
 	CardData& card = player.hand[cardIndex];
 
@@ -933,6 +1015,7 @@ void GameLogic::PlayCard(GameState& state, int playerIndex, int cardIndex) {
 
 	if (state.dontattackcard) {
 		// 공격카드 사용 불가
+		return;
 	}
 
 	bool isused = false;
@@ -1014,50 +1097,57 @@ void GameLogic::PlayCard(GameState& state, int playerIndex, int cardIndex) {
 	}
 
 	if (isused) {
-
 		player.mana -= manaCost;
-		PlayCardLogic(state, card.id, playerIndex);
+		float newMana = player.mana;
+		char ptypeMana = (playerIndex * PLAYER_SYNC_STRIDE) + SYNC_MANA;
+		RecordSTCPacket(bd, ptypeMana, &newMana, sizeof(float));
+
+		PlayCardLogic(state, card.id, playerIndex, false, bd);
+
 		card.id = rand() % 15;
-		// 마나 다운 애니메이션
-		// 카드 사용 애니매이션
+		CardData newCard = card;
+		char ptypeCard = (playerIndex * PLAYER_SYNC_STRIDE) + (SYNC_HAND_SLOT_0 + cardIndex);
+		RecordSTCPacket(bd, ptypeCard, &newCard, sizeof(CardData));
+		// 마나 다운 애니메이션 이벤트
+		// 카드 사용 애니매이션 이벤트
 	}
 }
 
-void GameLogic::PlayCardLogic(GameState& state, int cardID, int playerindex, bool usedByMonster)
+void GameLogic::PlayCardLogic(GameState& state, int cardID, int playerindex, bool usedByMonster, BattleData& bd)
 {
 	PlayerData& player = state.players[playerindex];
 	if (usedByMonster) {
 		// Card ID 0: 심장 뽑기 (Cost 2, Attack 70, Heal 10, Attack resets)
 		if (cardID == 0) {
-			ApplyDamageToPlayer(state, 70, playerindex);
+			ApplyDamageToPlayer(state, 70, playerindex, bd);
 		}
 		// Card ID 1: 심판 (Cost 3, Attack 90, Attack resets)
 		else if (cardID == 1 && player.mana >= 3) {
-			ApplyDamageToPlayer(state, 90, playerindex);
+			ApplyDamageToPlayer(state, 90, playerindex, bd);
 		}
 		// Card ID 2: 강타 (Cost 2, Attack 60, Attack resets)
 		else if (cardID && player.mana >= 2) {
-			ApplyDamageToPlayer(state, 60, playerindex);
+			ApplyDamageToPlayer(state, 60, playerindex, bd);
 		}
 		// Card ID 4: 돌진 (Cost 2, Attack 40, Defense +10, Attack resets)
 		else if (cardID == 4 && player.mana >= 2) {
-			ApplyDamageToPlayer(state, 40, playerindex);
+			ApplyDamageToPlayer(state, 40, playerindex, bd);
 		}
 		// Card ID 5: 대검휘두르기 (Cost 1, Attack 50, Attack resets)
 		else if (cardID == 5 && player.mana >= 1) {
-			ApplyDamageToPlayer(state, 50, playerindex);
+			ApplyDamageToPlayer(state, 50, playerindex, bd);
 		}
 		// Card ID 10: 절단 (Cost 2, Attack 40 (ignores defense), Attack resets)
 		else if (cardID == 10 && player.mana >= 2) {
-			ApplyDamageToPlayer(state, 40, playerindex);
+			ApplyDamageToPlayer(state, 40, playerindex, bd);
 		}
 		// Card ID 11: 일격 (Cost 3, Attack 140 next turn, Attack resets)
 		else if (cardID == 11 && player.mana >= 3) {
-			ApplyDamageToPlayer(state, 140, playerindex);
+			ApplyDamageToPlayer(state, 140, playerindex, bd);
 		}
 		// Card ID 13: 혈류 (Cost 1, HP -10, Attack 60, Attack resets)
 		else if (cardID == 13 && player.mana >= 1) {
-			ApplyDamageToPlayer(state, 60, playerindex);
+			ApplyDamageToPlayer(state, 60, playerindex, bd);
 		}
 	}
 	else {
@@ -1071,7 +1161,10 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, int playerindex, boo
 			}
 			player.hp += 10;
 			if (player.hp > 100) player.hp = 100;
-			ApplyDamageToBoss(state, playerindex, damage);
+			char ptypeHP = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_HP;
+			RecordSTCPacket(bd, ptypeHP, &player.hp, sizeof(int));
+
+			ApplyDamageToBoss(state, playerindex, damage, bd);
 		}
 		// Card ID 1: 심판 (Cost 3, Attack 90, Attack resets)
 		else if (cardID == 1) {
@@ -1079,9 +1172,11 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, int playerindex, boo
 			if (player.attack != 0) {
 				damage += player.attack;
 				player.attack = 0;
-				// 추가 공격 다운 애니메이션
+				// 추가 공격 다운 애니메이션 이펙트
+				char ptypeAtk = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_ATTACK;
+				RecordSTCPacket(bd, ptypeAtk, &player.attack, sizeof(int));
 			}
-			ApplyDamageToBoss(state, playerindex, damage);
+			ApplyDamageToBoss(state, playerindex, damage, bd);
 		}
 		// Card ID 2: 강타 (Cost 2, Attack 60, Attack resets)
 		else if (cardID == 2) {
@@ -1089,15 +1184,21 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, int playerindex, boo
 			if (player.attack != 0) {
 				damage += player.attack;
 				player.attack = 0;
-				// 추가 공격 다운 애니메이션
+				// 추가 공격 다운 애니메이션 이펙트
+				char ptypeAtk = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_ATTACK;
+				RecordSTCPacket(bd, ptypeAtk, &player.attack, sizeof(int));
 			}
-			ApplyDamageToBoss(state, playerindex, damage);
+			ApplyDamageToBoss(state, playerindex, damage, bd);
 		}
 		// Card ID 3: 자세잡기 (Cost 1, Defense +3, Mana +1)
 		else if (cardID == 3) {
 			player.mana += 1.0f;
 			player.defence += 3;
-			// 마나 업, 방어 업 애니매이션, 테카이 애니매이션
+			// 마나 업, 방어 업 애니매이션, 테카이 애니매이션 이펙트
+			char ptypeMana = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_MANA;
+			RecordSTCPacket(bd, ptypeMana, &player.mana, sizeof(float));
+			char ptypeDef = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_DEFFENCE;
+			RecordSTCPacket(bd, ptypeDef, &player.defence, sizeof(int));
 		}
 		// Card ID 4: 돌진 (Cost 2, Attack 40, Defense +10, Attack resets)
 		else if (cardID == 4) {
@@ -1105,11 +1206,16 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, int playerindex, boo
 			if (player.attack != 0) {
 				damage += player.attack;
 				player.attack = 0;
-				// 추가 공격 다운 애니메이션
+				// 추가 공격 다운 애니메이션 이펙트
+				char ptypeAtk = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_ATTACK;
+				RecordSTCPacket(bd, ptypeAtk, &player.attack, sizeof(int));
 			}
 			player.defence += 3;
-			// 방어 업, 테카이 애니메이션
-			ApplyDamageToBoss(state, playerindex, damage);
+			// 방어 업, 테카이 애니메이션 이펙트
+			char ptypeDef = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_DEFFENCE;
+			RecordSTCPacket(bd, ptypeDef, &player.defence, sizeof(int));
+
+			ApplyDamageToBoss(state, playerindex, damage, bd);
 		}
 		// Card ID 5: 대검휘두르기 (Cost 1, Attack 50, Attack resets)
 		else if (cardID == 5) {
@@ -1117,14 +1223,19 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, int playerindex, boo
 			if (player.attack != 0) {
 				damage += player.attack;
 				player.attack = 0;
-				// 추가 공격 다운 애니메이션
+
+				// 추가 공격 다운 애니메이션 이펙트
+				char ptypeAtk = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_ATTACK;
+				RecordSTCPacket(bd, ptypeAtk, &player.attack, sizeof(int));
 			}
-			ApplyDamageToBoss(state, playerindex, damage);
+			ApplyDamageToBoss(state, playerindex, damage, bd);
 		}
 		// Card ID 6: 바리게이트 (Cost 2, Defense x2)
 		else if (cardID == 6) {
 			player.defence *= 2;
-			// 텟카이 애니메이션, 방어 업 애니메이션
+			// 텟카이 애니메이션, 방어 업 애니메이션 이펙트
+			char ptypeDef = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_DEFFENCE;
+			RecordSTCPacket(bd, ptypeDef, &player.defence, sizeof(int));
 		}
 		// Card ID 7: 방패 밀쳐내기 (Cost 1, Attack = Defense, Attack resets)
 		else if (cardID == 7) {
@@ -1132,19 +1243,25 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, int playerindex, boo
 			if (player.attack != 0) {
 				damage += player.attack;
 				player.attack = 0;
-				// 추가 공격 다운 애니메이션
+				// 추가 공격 다운 애니메이션 이펙트
+				char ptypeAtk = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_ATTACK;
+				RecordSTCPacket(bd, ptypeAtk, &player.attack, sizeof(int));
 			}
-			ApplyDamageToBoss(state, playerindex, damage);
+			ApplyDamageToBoss(state, playerindex, damage, bd);
 		}
 		// Card ID 8: 굳건한 태세 (Cost 2, Block next attack)
 		else if (cardID == 8) {
 			player.invincible = true;
-			// 홀리 쉴드 애니메이션
+			// 홀리 쉴드 애니메이션 이펙트
+			char ptypeInv = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_INVINCIBLE;
+			RecordSTCPacket(bd, ptypeInv, &player.invincible, sizeof(bool));
 		}
 		// Card ID 9: 방패 세우기 (Cost 1, Defense +5)
 		else if (cardID == 9) {
 			player.defence += 5;
-			// 방어 업, 텟카이 애니메이션
+			// 방어 업, 텟카이 애니메이션 이펙트
+			char ptypeDef = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_DEFFENCE;
+			RecordSTCPacket(bd, ptypeDef, &player.defence, sizeof(int));
 		}
 		// Card ID 10: 절단 (Cost 2, Attack 40 (ignores defense), Attack resets)
 		else if (cardID == 10) {
@@ -1152,10 +1269,15 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, int playerindex, boo
 			if (player.attack != 0) {
 				damage += player.attack;
 				player.attack = 0;
-				// 추가 공격력 다운
+				// 추가 공격력 다운 이펙트
+				char ptypeAtk = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_ATTACK;
+				RecordSTCPacket(bd, ptypeAtk, &player.attack, sizeof(int));
 			}
 			player.cutting = true; // 
-			ApplyDamageToBoss(state, playerindex, damage);
+			char ptypeCut = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_CUTTING;
+			RecordSTCPacket(bd, ptypeCut, &player.cutting, sizeof(bool));
+
+			ApplyDamageToBoss(state, playerindex, damage, bd);
 		}
 		// Card ID 11: 일격 (Cost 3, Attack 140 next turn, Attack resets)
 		else if (cardID == 11) {
@@ -1163,17 +1285,30 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, int playerindex, boo
 			if (player.attack != 0) {
 				damage += player.attack;
 				player.attack = 0;
-				// 추가 공격다운 애니메이션
+				// 추가 공격다운 애니메이션 이펙트
+				char ptypeAtk = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_ATTACK;
+				RecordSTCPacket(bd, ptypeAtk, &player.attack, sizeof(int));
 			}
 			player.isCastingOnePunch = true;
 			player.onePunchCastTimer = 3.0f; // 
 			player.onePunchStoredDamage = damage;
-			// 일격 애니메이션
+			// 일격 애니메이션 이펙트
+			char ptypeCast = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_IS_CASTING_ONEPUNCH;
+			RecordSTCPacket(bd, ptypeCast, &player.isCastingOnePunch, sizeof(bool));
+			char ptypeTimer = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_ONEPUNCH_TIMER;
+			RecordSTCPacket(bd, ptypeTimer, &player.onePunchCastTimer, sizeof(float));
+			char ptypeDmg = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_ONEPUNCH_DAMAGE;
+			RecordSTCPacket(bd, ptypeDmg, &player.onePunchStoredDamage, sizeof(int));
 		}
 		// Card ID 12: 고속 이동 (Cost 2, Defense +5, Mana +1)
 		else if (cardID == 12) {
 			player.mana += 1.0f; // 마나 업 애니매이션
 			player.defence += 5; // 방어력 업 애니메이션
+
+			char ptypeMana = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_MANA;
+			RecordSTCPacket(bd, ptypeMana, &player.mana, sizeof(float));
+			char ptypeDef = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_DEFFENCE;
+			RecordSTCPacket(bd, ptypeDef, &player.defence, sizeof(int));
 		}
 		// Card ID 13: 혈류 (Cost 1, HP -10, Attack 60, Attack resets)
 		else if (cardID == 13) {
@@ -1182,26 +1317,34 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, int playerindex, boo
 				damage += player.attack;
 				player.attack = 0;
 				// 추가 공격 다운 애니메이션
+				char ptypeAtk = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_ATTACK;
+				RecordSTCPacket(bd, ptypeAtk, &player.attack, sizeof(int));
 			}
 			player.hp -= 10;
-			ApplyDamageToBoss(state, playerindex, damage);
 
 			//피 감소 애니메이션
+			char ptypeHP = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_HP;
+			RecordSTCPacket(bd, ptypeHP, &player.hp, sizeof(int));
+
+
+			ApplyDamageToBoss(state, playerindex, damage, bd);
 		}
 		// Card ID 14: 정조준 (Cost 1, Next Attack +20)
 		else if (cardID == 14) {
 			player.attack += 20;
 			// 공격력 업 애니매이션, 스나이퍼 애니메이션
+			char ptypeAtk = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_ATTACK;
+			RecordSTCPacket(bd, ptypeAtk, &player.attack, sizeof(int));
 		}
 	}
 }
 
-void GameLogic::CardUpdate(GameState& state, float deltaTime)
+void GameLogic::CardUpdate(GameState& state, float deltaTime, BattleData& bd)
 {
 
 }
 
-void GameLogic::ApplyDamageToPlayer(GameState& state, int damage, int playerindex) {
+void GameLogic::ApplyDamageToPlayer(GameState& state, int damage, int playerindex, BattleData& bd) {
 	PlayerData& player = state.players[playerindex];
 
 	int px = player.pos.x + 2;
@@ -1214,6 +1357,9 @@ void GameLogic::ApplyDamageToPlayer(GameState& state, int damage, int playerinde
 				if (player.invincible) { // 무적
 					damage = 0;
 					player.invincible = false;
+					bool newInvincible = false;
+					char ptypeInv = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_INVINCIBLE;
+					RecordSTCPacket(bd, ptypeInv, &newInvincible, sizeof(bool));
 				}
 				// 방어력 대비 피 다는거 계산
 				int defenseLost = 0;
@@ -1222,14 +1368,23 @@ void GameLogic::ApplyDamageToPlayer(GameState& state, int damage, int playerinde
 
 				int damageDealt = player.defence - damage;
 				player.defence = (damageDealt > 0) ? damageDealt : 0;
+				int newDef = player.defence;
+				char ptypeDef = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_DEFFENCE;
+				RecordSTCPacket(bd, ptypeDef, &newDef, sizeof(int));
 
 				if (damageDealt < 0) {
 					hpLost = -damageDealt;
 					player.hp -= hpLost;
 					if (player.hp < 0) player.hp = 0;
+
+					int newHP = player.hp;
+					char ptypeHP = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_HP;
+					RecordSTCPacket(bd, ptypeHP, &newHP, sizeof(int));
 				}
 
 				defenseLost = initialDefense - player.defence;
+
+				return;
 			}
 		}
 	}
@@ -1237,7 +1392,7 @@ void GameLogic::ApplyDamageToPlayer(GameState& state, int damage, int playerinde
 
 }
 
-void GameLogic::ApplyDamageToBoss(GameState& state, int playerID, int rawDamage)
+void GameLogic::ApplyDamageToBoss(GameState& state, int playerID, int rawDamage, BattleData& bd)
 {
 
 	if (state.boss.nodamageMode) {
@@ -1262,65 +1417,60 @@ void GameLogic::ApplyDamageToBoss(GameState& state, int playerID, int rawDamage)
 		else {
 			actualHpDamage = 0;
 		}
-		// 보스 방어력 감소 이펙트
+
+		// 보스 방어력 감소 이펙트 이벤트
+
+		int newBossDef = state.boss.defence;
+		RecordSTCPacket(bd, STC_Sync_Boss_Defence, &newBossDef, sizeof(int));
 	}
 
 	state.boss.hp -= actualHpDamage;
 	if (state.boss.hp < 0) {
 		state.boss.hp = 0;
 	}
-	// 보스 체력 감소 이펙트
+
+	// 보스 체력 감소 이펙트 이벤트
+
+	int newBossHP = state.boss.hp;
+	RecordSTCPacket(bd, STC_Sync_Boss_Hp, &newBossHP, sizeof(int));
 
 	if (iscutting) {
 		state.players[playerID].cutting = false;
+
+		bool newCutting = false;
+		char ptypeCut = (playerID * PLAYER_SYNC_STRIDE) + SYNC_CUTTING;
+		RecordSTCPacket(bd, ptypeCut, &newCutting, sizeof(bool));
 	}
 }
 
-void GameLogic::ApplyDefenseToEnemy(GameState& state, int defense) {
+void GameLogic::ApplyDefenseToEnemy(GameState& state, int defense, BattleData& bd) {
 	state.boss.defence += defense;
-	// 보스 방어력 업 애니메이션
+
+	// 보스 방어력 업 애니메이션 이벤트
+	int newBossDef = state.boss.defence;
+	RecordSTCPacket(bd, STC_Sync_Boss_Defence, &newBossDef, sizeof(int));
 }
 
-void GameLogic::HealBoss(GameState& state, int healAmount)
+void GameLogic::HealBoss(GameState& state, int healAmount, BattleData& bd)
 {
 	state.boss.hp += healAmount;
 
 	if (state.boss.hp > 100) {
 		state.boss.hp = 100;
 	}
-	// 힐 이펙트
+
+	// 보스 힐 이펙트 이벤트
+	int newBossHP = state.boss.hp;
+	RecordSTCPacket(bd, STC_Sync_Boss_Hp, &newBossHP, sizeof(int));
 }
 
-void GameLogic::GameInit(SOCKET sock, const GameState& state, int playerindex, PlayerData& pdata)
+void GameLogic::RecordSTCPacket(BattleData& bd, char ptype, void* data, int dataSize)
 {
-	char buf[64] = {};
-	int offset = 0;
+	std::vector<char> packet(1 + dataSize);
+	packet[0] = ptype;
+	memcpy(packet.data() + 1, data, dataSize);
 
-	buf[offset++] = STC_PT_Gameinit;          // type
-	buf[offset++] = state.PvEMode ? 1 : 0;
-	buf[offset++] = (uint8_t)playerindex;
-
-	//boss info
-	*(int32_t*)&buf[offset] = state.boss.id;      offset += 4;
-	*(int32_t*)&buf[offset] = state.boss.hp;      offset += 4;
-	*(int32_t*)&buf[offset] = state.boss.defence; offset += 4;
-
-	//player info
-	for (int i = 0; i < GameState::playerCount; ++i) {
-		buf[offset++] = (uint8_t)state.players[i].hp;
-		buf[offset++] = (uint8_t)state.players[i].mana;
-	}
-
-	//card info
-	uint8_t handCount = 5;
-	buf[offset++] = handCount;
-
-	for (int i = 0; i < handCount; ++i) {
-		int cardId = pdata.hand[i].id;                 // state에서 읽기
-		memcpy(&buf[offset], &cardId, sizeof(int)); // buf에 쓰기
-		offset += sizeof(int);
-	}
-
-	send(sock, buf, offset, 0);
-
+	bd.STCQueueMutex.lock();
+	bd.STCQueue.push(packet);
+	bd.STCQueueMutex.unlock();
 }
