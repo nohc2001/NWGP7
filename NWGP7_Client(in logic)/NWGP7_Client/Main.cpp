@@ -817,7 +817,7 @@ void participateInMatch(bool ispvp) {
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdParam, int nCmdShow)
 {
-	char* SERVERIP = (char*)"127.0.0.1";
+	char* SERVERIP = (char*)"192.168.65.118";
 	int retval;
 
 	WSADATA wsa;

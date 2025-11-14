@@ -17,7 +17,13 @@ using namespace std;
 enum ClientToServer_ProtocolType {
 	CTS_PT_KeyInput = 0,
 	CTS_PT_PlayCard = 1,
-	CTS_PT_Participant = 1,
+	CTS_PT_Participant = 2,
+
+};
+
+enum ServerToClient_ProtocolType {
+	STC_PT_Gameinit = 0,
+
 };
 
 struct OP {
@@ -271,6 +277,8 @@ public:
 	void ApplyDamageToBoss(GameState& state, int playerID, int rawDamage);
 	void ApplyDefenseToEnemy(GameState& state, int defense);
 	void HealBoss(GameState& state, int healAmount);
+
+	void GameInit(SOCKET sock, const GameState& state, int playerindex, PlayerData& pdata);
 };
 
 struct TryMatch {
@@ -278,8 +286,11 @@ struct TryMatch {
 	bool is_pvp;
 };
 mutex matchMutex;
+
 vector<TryMatch> MatchingArr;
+
 thread_local int threadID;
+
 
 struct ClientLocalParam {
 	int thread_id;
@@ -391,6 +402,25 @@ void TimeBasedUpdate(BattleData& bd, float deltaTime) {
 
 DWORD WINAPI ProcessBattle(LPVOID arg) {
 	BattleData& bd = *(BattleData*)arg;
+
+	GameState state;
+	GameLogic logic;
+
+	logic.Initialize(state);
+	logic.StartBattle(state);
+
+	for (int i = 0; i < 3; ++i) {  // 3인 게임 기준
+		int clientId = bd.clientsID[i];
+		if (clientId < 0) continue; // 혹시 빈 자리면 스킵
+
+		ClientData& cd = clients[clientId];
+		SOCKET sock = cd.param.sock;   // 너네 구조에서 소켓 멤버 이름에 맞춰
+
+		// 플레이어 i의 패/데이터
+		PlayerData& pdata = state.players[i]; // 또는 state.players[i].pdata 이런 식
+
+		logic.GameInit(sock, state, i, pdata);
+	}
 
 	// battleupdate
 	while (1) {
@@ -1259,4 +1289,38 @@ void GameLogic::HealBoss(GameState& state, int healAmount)
 		state.boss.hp = 100;
 	}
 	// 힐 이펙트
+}
+
+void GameLogic::GameInit(SOCKET sock, const GameState& state, int playerindex, PlayerData& pdata)
+{
+	char buf[64] = {};
+	int offset = 0;
+
+	buf[offset++] = STC_PT_Gameinit;          // type
+	buf[offset++] = state.PvEMode ? 1 : 0;
+	buf[offset++] = (uint8_t)playerindex;
+
+	//boss info
+	*(int32_t*)&buf[offset] = state.boss.id;      offset += 4;
+	*(int32_t*)&buf[offset] = state.boss.hp;      offset += 4;
+	*(int32_t*)&buf[offset] = state.boss.defence; offset += 4;
+
+	//player info
+	for (int i = 0; i < GameState::playerCount; ++i) {
+		buf[offset++] = (uint8_t)state.players[i].hp;
+		buf[offset++] = (uint8_t)state.players[i].mana;
+	}
+
+	//card info
+	uint8_t handCount = 5;
+	buf[offset++] = handCount;
+
+	for (int i = 0; i < handCount; ++i) {
+		int cardId = pdata.hand[i].id;                 // state에서 읽기
+		memcpy(&buf[offset], &cardId, sizeof(int)); // buf에 쓰기
+		offset += sizeof(int);
+	}
+
+	send(sock, buf, offset, 0);
+
 }

@@ -55,6 +55,11 @@ LPCTSTR lpszWindowName = L"windows program";
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam);
 
+enum ServerToClient_ProtocolType {
+	STC_PT_Gameinit = 0,
+
+};
+
 struct CardData {
 	int id = 0;
 };
@@ -899,28 +904,64 @@ unsigned __stdcall Send_Thread(void* arg)
 	return 0;
 }
 
+//unsigned __stdcall Recv_Thread(void* arg)
+//{
+//	SOCKET sock = (SOCKET)arg;
+//	GameState receivedState;
+//	int retval;
+//
+//	while (true)
+//	{
+//		retval = recv(sock, (char*)&receivedState, sizeof(GameState), MSG_WAITALL);
+//
+//		if (retval == SOCKET_ERROR || retval == 0) {
+//			MessageBox(g_hWnd, L"서버와의 연결이 끊겼습니다.", L"접속 종료", MB_OK);
+//			PostMessage(g_hWnd, WM_CLOSE, 0, 0);
+//			break;
+//		}
+//
+//		WaitForSingleObject(g_hMutexGameState, INFINITE);
+//		// recv 받은 data GameState 갱신
+//
+//		ReleaseMutex(g_hMutexGameState);
+//
+//		InvalidateRect(g_hWnd, NULL, FALSE);
+//	}
+//	return 0;
+//}
+
 unsigned __stdcall Recv_Thread(void* arg)
 {
 	SOCKET sock = (SOCKET)arg;
-	GameState receivedState;
+	char buf[BUFSIZE];
 	int retval;
 
 	while (true)
 	{
-		retval = recv(sock, (char*)&receivedState, sizeof(GameState), MSG_WAITALL);
-
+		retval = recv(sock, buf, BUFSIZE, 0);
 		if (retval == SOCKET_ERROR || retval == 0) {
 			MessageBox(g_hWnd, L"서버와의 연결이 끊겼습니다.", L"접속 종료", MB_OK);
 			PostMessage(g_hWnd, WM_CLOSE, 0, 0);
 			break;
 		}
 
-		WaitForSingleObject(g_hMutexGameState, INFINITE);
-		// recv 받은 data GameState 갱신
+		uint8_t type = (uint8_t)buf[0];
 
-		ReleaseMutex(g_hMutexGameState);
+		switch (type) {
+		case STC_PT_Gameinit:
+			WaitForSingleObject(g_hMutexGameState, INFINITE);
+			//여기서 처리
+			
+			ReleaseMutex(g_hMutexGameState);
+			break;
 
-		InvalidateRect(g_hWnd, NULL, FALSE);
+			// 나중에: STC_PT_StateUpdate, STC_PT_Damage, STC_PT_DrawCard 등등 추가
+		default:
+			// 모르는 패킷이면 무시
+			break;
+		}
+
+		InvalidateRect(g_hWnd, NULL, FALSE); // 화면 갱신
 	}
 	return 0;
 }
