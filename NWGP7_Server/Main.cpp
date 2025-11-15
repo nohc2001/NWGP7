@@ -63,7 +63,9 @@ enum ServerToClient_ProtocolType {
 	STC_Sync_Boss_Death = 102,
 	STC_Sync_Boss_Awakening = 103,
 	STC_Sync_Boss_ID = 104,
-
+	
+	// MapData
+	STC_Sync_MapData = 116,
 };
 
 struct OP {
@@ -285,21 +287,24 @@ public:
 
 };
 
+struct BattleData;
+
 class GameLogic {
 public:
 	void Initialize(GameState& state);
+	void StartBattle(GameState& state); // 맵에서 전투 시작
 
 	void Update(GameState& state, BattleData& bd);
 
 	void UpdatePvE(GameState& state, float deltaTime, BattleData& bd);
 	void UpdatePvP(GameState& state, float deltaTime, BattleData& bd);
 
-	void CheckWinLossConditionsPvP(GameState& state);
-	void CheckWinLossConditionsPvE(GameState& state);
+	void CheckWinLossConditionsPvP(GameState& state, BattleData& bd);
+	void CheckWinLossConditionsPvE(GameState& state, BattleData& bd);
 
-	void AttackWarning(GameState& state);
+	void AttackWarning(GameState& state, BattleData& bd);
 	void AttackOnRandomGreed(GameState& state, int damage, BattleData& bd);
-	void MapStateRepare(GameState& state);
+	void MapStateRepare(GameState& state, BattleData& bd);
 
 	// if realtime
 	void GameInit(SOCKET sock, const GameState& state, int playerindex, PlayerData& pdata);
@@ -307,9 +312,8 @@ public:
 	void ExecuteEnemyAI(GameState& state, float deltaTime, BattleData& bd);
 	void UpdateBuffsAndTimers(GameState& state, float deltaTime);
 
-	void StartBattle(GameState& state); // 맵에서 전투 시작
-	void PlayCard(GameState& state, int cardIndex, int playerindex = 0, BattleData& bd); // 카드 사용
-	void PlayCardLogic(GameState& state, int cardID, int playerindex = 0, bool usedByMonster = false, BattleData& bd); // 카드 사용
+	void PlayCard(GameState& state, int cardIndex, BattleData& bd, int playerIndex = 0); // 카드 사용
+	void PlayCardLogic(GameState& state, int cardID, BattleData& bd, int playerindex = 0, bool usedByMonster = false); // 카드 사용
 
 	void CardUpdate(GameState& state, float deltaTime, BattleData& bd);
 
@@ -362,6 +366,7 @@ BattleData battles[128] = {};
 int battle_id_up = 0;
 
 thread_local ClientData* clientData;
+
 DWORD WINAPI ProcessClient(LPVOID arg) 
 {
 	int retval;
@@ -444,29 +449,32 @@ void ExecuteOP(BattleData& bd) {
 }
 
 void TimeBasedUpdate(BattleData& bd, float deltaTime) {
-
+	bd.gameLogic.Update(bd.gameState, bd);
 }
 
 DWORD WINAPI ProcessBattle(LPVOID arg) {
 	BattleData& bd = *(BattleData*)arg;
 
-	GameState state;
-	GameLogic logic;
+	bd.gameLogic.Initialize(bd.gameState);
+	bd.gameLogic.StartBattle(bd.gameState);
 
-	logic.Initialize(state);
-	logic.StartBattle(state);
+	char ptype = STC_PT_InitGame; // 게임 초기값 프로토콜
 
-	for (int i = 0; i < 3; ++i) {  // 3인 게임 기준
+	for (int i = 0; i < GameState::playerCount; ++i) {
 		int clientId = bd.clientsID[i];
-		if (clientId < 0) continue; // 혹시 빈 자리면 스킵
+		if (clientId < 0) continue;
+		SOCKET sock = clients[clientId].param.sock;
 
-		ClientData& cd = clients[clientId];
-		SOCKET sock = cd.param.sock;   // 너네 구조에서 소켓 멤버 이름에 맞춰
+		vector<char> initPacket(1 + sizeof(int) + sizeof(GameState));
+		int offset = 0;
+		memcpy(initPacket.data() + offset, &ptype, 1);
+		offset += 1;
+		memcpy(initPacket.data() + offset, &i, sizeof(int)); 
+		offset += sizeof(int);
 
-		// 플레이어 i의 패/데이터
-		PlayerData& pdata = state.players[i]; // 또는 state.players[i].pdata 이런 식
+		memcpy(initPacket.data() + offset, &bd.gameState, sizeof(GameState));
 
-		logic.GameInit(sock, state, i, pdata);
+		send(sock, initPacket.data(), initPacket.size(), 0);
 	}
 
 	// battleupdate
@@ -475,6 +483,23 @@ DWORD WINAPI ProcessBattle(LPVOID arg) {
 		
 		const float deltaTime = 0.017; // temp delta time;
 		TimeBasedUpdate(bd, deltaTime);
+
+		bd.STCQueueMutex.lock();
+		while (!bd.STCQueue.empty()) {
+			vector<char> packet = bd.STCQueue.front();
+			bd.STCQueue.pop();
+
+			for (int i = 0; i < GameState::playerCount; ++i) {
+				int clientID = bd.clientsID[i];
+				if (clientID < 0) continue;
+
+				SOCKET clientSock = clients[clientID].param.sock;
+				send(clientSock, packet.data(), packet.size(), 0);
+			}
+		}
+		bd.STCQueueMutex.unlock();
+		
+		Sleep(17);//
 	}
 }
 
@@ -649,6 +674,78 @@ void GameLogic::Initialize(GameState& state)
 	}
 }
 
+void GameLogic::StartBattle(GameState& state)
+{
+	//$Chang Player Init
+	for (int i = 0; i < GameState::playerCount; ++i) {
+		PlayerData& p = state.players[i];
+		p.mana = p.maxMana;
+		p.hp = 100;
+		p.pos.x = 0;
+		p.pos.y = 0;
+
+		for (int i = 0; i < 5; ++i) {
+			p.hand[i].id = rand() % 15;
+		}
+	}
+
+	if (state.PvEMode) { //레이드
+		state.boss.attackTimer = 0.0f;
+		state.boss.death = false;
+		//state.boss.id = rand() % 9;
+		state.boss.id = 0;
+
+		if (state.boss.id == 0) {
+			state.boss.hp = 100;
+			state.boss.defence = 0;
+		}
+		else if (state.boss.id == 1) {
+			state.boss.hp = 100;
+			state.boss.defence = 15;
+		}
+		else if (state.boss.id == 2) {
+			state.boss.hp = 100;
+			state.boss.defence = 15;
+		}
+		else if (state.boss.id == 3) {
+			state.boss.hp = 100;
+			state.boss.defence = 20;
+			state.boss.bossmode2 = false;
+			state.boss.boss_statck = 0;
+		}
+		else if (state.boss.id == 4) {
+			state.boss.hp = 100;
+			state.boss.defence = 30;
+		}
+		else if (state.boss.id == 5) {
+			state.boss.hp = 100;
+			state.boss.defence = 20;
+			state.boss.bossmode2 = false;
+			state.boss.boss_statck = 0;
+		}
+		else if (state.boss.id == 6) {
+			state.boss.hp = 100;
+			state.boss.defence = 20;
+			state.boss.boss_statck = 0;
+		}
+		else if (state.boss.id == 7) {
+			state.boss.hp = 100;
+			state.boss.defence = 20;
+			state.boss.nodamageMode = false;
+			state.boss.bossmode3 = false;
+			state.boss.boss_statck = 0;
+		}
+		else if (state.boss.id == 8) {
+			state.boss.hp = 100;
+			state.boss.defence = 20;
+			state.boss.bossAwakening = false;
+		}
+	}
+	else { // pvp
+
+	}
+}
+
 void GameLogic::Update(GameState& state, BattleData& bd)
 {
 	if (state.PvEMode) {
@@ -663,44 +760,54 @@ void GameLogic::Update(GameState& state, BattleData& bd)
 
 void GameLogic::UpdatePvE(GameState& state, float deltaTime, BattleData& bd)
 {
-	CheckWinLossConditionsPvE(state);
+	CheckWinLossConditionsPvE(state, bd);
 	UpdateBattle_RealTime(state, deltaTime, bd);
 }
 
 void GameLogic::UpdatePvP(GameState& state, float deltaTime, BattleData& bd)
 {
-	CheckWinLossConditionsPvP(state);
+	CheckWinLossConditionsPvP(state, bd);
 	UpdateBattle_RealTime(state, deltaTime, bd);
 }
 
-void GameLogic::CheckWinLossConditionsPvE(GameState& state)
+void GameLogic::CheckWinLossConditionsPvE(GameState& state, BattleData& bd)
 {
 	if (state.boss.hp <= 0) { // boss 
 		if (state.boss.bossAwakening) {
 			//state.boomswitch = true; // 폭발 모션 재생
 			state.boss.death = true;
+			RecordSTCPacket(bd, STC_Sync_Boss_Death, &state.boss.death, sizeof(bool));
 		}
 		else {
 			//state.boss.heal = true; // 체력회복 모션 재생
 			state.boss.healEnergy = 100;
 			state.boss.bossAwakening = true;
 			state.boss.defence = 20;
+
+			//RecordSTCPacket(bd, STC_Sync_Boss_HealEnergy, &state.boss.healEnergy, sizeof(int));
+			RecordSTCPacket(bd, STC_Sync_Boss_Awakening, &state.boss.bossAwakening, sizeof(bool));
+			RecordSTCPacket(bd, STC_Sync_Boss_Defence, &state.boss.defence, sizeof(int));
 		}
 	}
-	if (state.players[0].hp <= 0 && state.players[0].playerdeath == false) {
-		state.players[0].playerdeath = true;
-		//state.pdeath = true; // 플레이어 죽는 모션 재생
+
+	for (int i = 0; i < GameState::playerCount; ++i) {
+		if (state.players[0].hp <= 0 && state.players[0].playerdeath == false) {
+			state.players[0].playerdeath = true;
+			char ptype = (i * PLAYER_SYNC_STRIDE) + SYNC_PLAYER_DEATH;
+			RecordSTCPacket(bd, ptype, &state.players[i].playerdeath, sizeof(bool));
+			//state.pdeath = true; // 플레이어 죽는 모션 재생
+		}
 	}
 }
 
-void GameLogic::CheckWinLossConditionsPvP(GameState& state)
+void GameLogic::CheckWinLossConditionsPvP(GameState& state, BattleData& bd)
 {
 	// pvp 모드 승리 패배 조건
 }
 
-void GameLogic::AttackWarning(GameState& state)
+void GameLogic::AttackWarning(GameState& state, BattleData& bd)
 {
-	MapStateRepare(state);
+	MapStateRepare(state, bd);
 
 	int count = 3;
 	for (int i = 0; i < count; ++i) {
@@ -709,6 +816,9 @@ void GameLogic::AttackWarning(GameState& state)
 
 		state.mapData[ry][rx] = 3; // please enum
 	}
+
+	char ptype = STC_Sync_MapData;
+	RecordSTCPacket(bd, ptype, state.mapData, sizeof(state.mapData));
 }
 
 void GameLogic::AttackOnRandomGreed(GameState& state, int damage, BattleData& bd)
@@ -720,16 +830,25 @@ void GameLogic::AttackOnRandomGreed(GameState& state, int damage, BattleData& bd
 			}
 		}
 	}
+
+	char ptype = STC_Sync_MapData;
+	RecordSTCPacket(bd, ptype, state.mapData, sizeof(state.mapData));
+
 	ApplyDamageToPlayer(state, damage, 0, bd); // 데미지 15
+	ApplyDamageToPlayer(state, damage, 1, bd); // 데미지 15
+	ApplyDamageToPlayer(state, damage, 2, bd); // 데미지 15
 }
 
-void GameLogic::MapStateRepare(GameState& state)
+void GameLogic::MapStateRepare(GameState& state, BattleData& bd)
 {
 	for (int i = 0; i < GameState::GRID_SIZE; i++) {
 		for (int j = 0; j < GameState::GRID_SIZE; j++) {
 			state.mapData[i][j] = 0;
 		}
 	}
+
+	char ptype = STC_Sync_MapData;
+	RecordSTCPacket(bd, ptype, state.mapData, sizeof(state.mapData));
 }
 
 void GameLogic::ExecuteEnemyAI(GameState& state, float deltaTime, BattleData& bd)
@@ -739,7 +858,9 @@ void GameLogic::ExecuteEnemyAI(GameState& state, float deltaTime, BattleData& bd
 		if (state.boss.attackState == 0) {
 			state.boss.attackState = 1;
 			state.boss.currentStateDuration = 3.0f; //경고
-			AttackWarning(state);
+
+
+			AttackWarning(state, bd);
 		}
 		else if (state.boss.attackState == 1) {
 			state.boss.attackState = 2;
@@ -749,7 +870,7 @@ void GameLogic::ExecuteEnemyAI(GameState& state, float deltaTime, BattleData& bd
 		else if (state.boss.attackState == 2) {
 			state.boss.attackState = 0;
 			state.boss.currentStateDuration = 3.0f; // 복구
-			MapStateRepare(state);
+			MapStateRepare(state, bd);
 		}
 	}
 	//// 스테이지 2-1 기사 50% 공격 50% 방어
@@ -894,14 +1015,27 @@ void GameLogic::UpdateBattle_RealTime(GameState& state, float deltaTime, BattleD
 		p.mana += deltaTime * manaRegenSpeed;
 		if (p.mana > p.maxMana) {
 			p.mana = p.maxMana;
+
+			char ptypeMana = (i * PLAYER_SYNC_STRIDE) + SYNC_MANA;
+			RecordSTCPacket(bd, ptypeMana, &p.mana, sizeof(float));
 		}
 
 		//onepuncing?
 		if (p.isCastingOnePunch) { // 일격!!
+
 			p.onePunchCastTimer -= deltaTime;
+			char ptypeTimer = (i * PLAYER_SYNC_STRIDE) + SYNC_ONEPUNCH_TIMER;
+			RecordSTCPacket(bd, ptypeTimer, &p.onePunchCastTimer, sizeof(float));
+
 			if (p.onePunchCastTimer <= 0.0f) {
 				p.isCastingOnePunch = false;
 				p.onePunchCastTimer = 0.0f;
+
+				char ptypeCast = (i * PLAYER_SYNC_STRIDE) + SYNC_IS_CASTING_ONEPUNCH;
+				RecordSTCPacket(bd, ptypeCast, &p.isCastingOnePunch, sizeof(bool));
+
+				char ptypeDmg = (i * PLAYER_SYNC_STRIDE) + SYNC_ONEPUNCH_DAMAGE;
+				RecordSTCPacket(bd, ptypeDmg, &p.onePunchStoredDamage, sizeof(int));
 
 				ApplyDamageToBoss(state, i, p.onePunchStoredDamage, bd);
 				p.onePunchStoredDamage = 0;
@@ -914,6 +1048,7 @@ void GameLogic::UpdateBattle_RealTime(GameState& state, float deltaTime, BattleD
 	if (state.PvEMode) {
 		if (state.boss.hp <= 0 && !state.boss.death) {
 			state.boss.death = true; // 보스 죽음
+			RecordSTCPacket(bd, STC_Sync_Boss_Death, &state.boss.death, sizeof(bool));
 		}
 		state.boss.attackTimer += deltaTime;
 
@@ -935,79 +1070,7 @@ void GameLogic::UpdateBuffsAndTimers(GameState& state, float deltaTime)
 
 }
 
-void GameLogic::StartBattle(GameState& state)
-{
-	//$Chang Player Init
-	for (int i = 0; i < GameState::playerCount; ++i) {
-		PlayerData& p = state.players[i];
-		p.mana = p.maxMana;
-		p.hp = 100;
-		p.pos.x = 0;
-		p.pos.y = 0;
-
-		for (int i = 0; i < 5; ++i) {
-			p.hand[i].id = rand() % 15;
-		}
-	}
-
-	if (state.PvEMode) { //레이드
-		state.boss.attackTimer = 0.0f;
-		state.boss.death = false;
-		//state.boss.id = rand() % 9;
-		state.boss.id = 0;
-
-		if (state.boss.id == 0) {
-			state.boss.hp = 100;
-			state.boss.defence = 0;
-		}
-		else if (state.boss.id == 1) {
-			state.boss.hp = 100;
-			state.boss.defence = 15;
-		}
-		else if (state.boss.id == 2) {
-			state.boss.hp = 100;
-			state.boss.defence = 15;
-		}
-		else if (state.boss.id == 3) {
-			state.boss.hp = 100;
-			state.boss.defence = 20;
-			state.boss.bossmode2 = false;
-			state.boss.boss_statck = 0;
-		}
-		else if (state.boss.id == 4) {
-			state.boss.hp = 100;
-			state.boss.defence = 30;
-		}
-		else if (state.boss.id == 5) {
-			state.boss.hp = 100;
-			state.boss.defence = 20;
-			state.boss.bossmode2 = false;
-			state.boss.boss_statck = 0;
-		}
-		else if (state.boss.id == 6) {
-			state.boss.hp = 100;
-			state.boss.defence = 20;
-			state.boss.boss_statck = 0;
-		}
-		else if (state.boss.id == 7) {
-			state.boss.hp = 100;
-			state.boss.defence = 20;
-			state.boss.nodamageMode = false;
-			state.boss.bossmode3 = false;
-			state.boss.boss_statck = 0;
-		}
-		else if (state.boss.id == 8) {
-			state.boss.hp = 100;
-			state.boss.defence = 20;
-			state.boss.bossAwakening = false;
-		}
-	}
-	else { // pvp
-
-	}
-}
-
-void GameLogic::PlayCard(GameState& state, int playerIndex, int cardIndex, BattleData& bd) {
+void GameLogic::PlayCard(GameState& state, int cardIndex, BattleData& bd, int playerIndex) {
 	PlayerData& player = state.players[playerIndex];
 	CardData& card = player.hand[cardIndex];
 
@@ -1102,7 +1165,7 @@ void GameLogic::PlayCard(GameState& state, int playerIndex, int cardIndex, Battl
 		char ptypeMana = (playerIndex * PLAYER_SYNC_STRIDE) + SYNC_MANA;
 		RecordSTCPacket(bd, ptypeMana, &newMana, sizeof(float));
 
-		PlayCardLogic(state, card.id, playerIndex, false, bd);
+		PlayCardLogic(state, card.id, bd, playerIndex, false);
 
 		card.id = rand() % 15;
 		CardData newCard = card;
@@ -1113,7 +1176,7 @@ void GameLogic::PlayCard(GameState& state, int playerIndex, int cardIndex, Battl
 	}
 }
 
-void GameLogic::PlayCardLogic(GameState& state, int cardID, int playerindex, bool usedByMonster, BattleData& bd)
+void GameLogic::PlayCardLogic(GameState& state, int cardID, BattleData& bd, int playerindex, bool usedByMonster)
 {
 	PlayerData& player = state.players[playerindex];
 	if (usedByMonster) {

@@ -55,11 +55,6 @@ LPCTSTR lpszWindowName = L"windows program";
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam);
 
-enum ServerToClient_ProtocolType {
-	STC_PT_Gameinit = 0,
-
-};
-
 struct CardData {
 	int id = 0;
 };
@@ -340,8 +335,8 @@ public:
 	static constexpr int playerCount = 3;
 	PlayerData players[playerCount]; // players data
 
-	static constexpr int clientindex = 0;
-	PlayerData* player = &player[clientindex]; // client's player
+	//static constexpr int clientindex = 0;
+	//PlayerData* player = &player[clientindex]; // client's player
 
 	BossData boss; // boss data
 
@@ -800,6 +795,7 @@ public:
 	void OnLButtonUp(int x, int y);
 	void OnKeyDown(WPARAM wParam);
 	void OnKeyUp(WPARAM wParam);
+	void UpdateStateFromServer(const GameState& newState);
 
 	HWND m_hWnd;
 	AssetManager m_Assets;  // 자원 관리
@@ -816,6 +812,53 @@ enum ClientToServer_ProtocolType {
 	CTS_PT_KeyInput = 0,
 	CTS_PT_PlayCard = 1,
 	CTS_PT_Participant = 2,
+};
+
+enum PlayerSyncBase {
+	SYNC_HP = 0,
+	SYNC_MAX_MANA = 1,
+	SYNC_MANA = 2,
+	SYNC_DEFFENCE = 3,
+	SYNC_ATTACK = 4,
+	SYNC_POS = 5,
+
+	SYNC_HAND_SLOT_0 = 9,
+	SYNC_HAND_SLOT_1 = 10,
+	SYNC_HAND_SLOT_2 = 11,
+	SYNC_HAND_SLOT_3 = 12,
+	SYNC_HAND_SLOT_4 = 13,
+
+	SYNC_PLAYER_DEATH = 14,
+	SYNC_CUTTING = 15,
+	SYNC_INVINCIBLE = 16,
+	SYNC_IS_CASTING_ONEPUNCH = 17,
+	SYNC_ONEPUNCH_TIMER = 18,
+	SYNC_ONEPUNCH_DAMAGE = 19,
+	SYNC_PARING_MOMENT = 20,
+
+};
+
+const int PLAYER_SYNC_STRIDE = 32;
+
+enum ServerToClient_ProtocolType {
+
+	// Game Event
+	STC_PT_ThrowCard = 96,
+	STC_PT_Effect_Event = 97,
+	STC_PT_Effect_Pos = 98,
+
+	// Game Init
+	STC_PT_InitGame = 99,
+
+	// boss sync
+	STC_Sync_Boss_Defence = 100,
+	STC_Sync_Boss_Hp = 101,
+	STC_Sync_Boss_Death = 102,
+	STC_Sync_Boss_Awakening = 103,
+	STC_Sync_Boss_ID = 104,
+
+	// MapData
+	STC_Sync_MapData = 116,
 };
 
 struct OP {
@@ -860,6 +903,7 @@ HANDLE g_hMutexSendQueue;
 std::queue< std::vector<char> > g_SendQueue;
 
 HWND g_hWnd;
+int g_myPlayerIndex = -1;
 
 void participateInMatch(bool ispvp) {
 	char buff[2] = { 2, ispvp };
@@ -904,64 +948,112 @@ unsigned __stdcall Send_Thread(void* arg)
 	return 0;
 }
 
-//unsigned __stdcall Recv_Thread(void* arg)
-//{
-//	SOCKET sock = (SOCKET)arg;
-//	GameState receivedState;
-//	int retval;
-//
-//	while (true)
-//	{
-//		retval = recv(sock, (char*)&receivedState, sizeof(GameState), MSG_WAITALL);
-//
-//		if (retval == SOCKET_ERROR || retval == 0) {
-//			MessageBox(g_hWnd, L"서버와의 연결이 끊겼습니다.", L"접속 종료", MB_OK);
-//			PostMessage(g_hWnd, WM_CLOSE, 0, 0);
-//			break;
-//		}
-//
-//		WaitForSingleObject(g_hMutexGameState, INFINITE);
-//		// recv 받은 data GameState 갱신
-//
-//		ReleaseMutex(g_hMutexGameState);
-//
-//		InvalidateRect(g_hWnd, NULL, FALSE);
-//	}
-//	return 0;
-//}
-
 unsigned __stdcall Recv_Thread(void* arg)
 {
 	SOCKET sock = (SOCKET)arg;
-	char buf[BUFSIZE];
+	char ptype;
 	int retval;
 
 	while (true)
 	{
-		retval = recv(sock, buf, BUFSIZE, 0);
+		retval = recv(sock, &ptype, 1, MSG_WAITALL);
+
 		if (retval == SOCKET_ERROR || retval == 0) {
 			MessageBox(g_hWnd, L"서버와의 연결이 끊겼습니다.", L"접속 종료", MB_OK);
 			PostMessage(g_hWnd, WM_CLOSE, 0, 0);
 			break;
 		}
 
-		uint8_t type = (uint8_t)buf[0];
+		WaitForSingleObject(g_hMutexGameState, INFINITE);
 
-		switch (type) {
-		case STC_PT_Gameinit:
-			WaitForSingleObject(g_hMutexGameState, INFINITE);
-			//여기서 처리
-			
-			ReleaseMutex(g_hMutexGameState);
-			break;
+		if (ptype >= 0 && ptype < 96) {
+			int playerIndex = ptype / PLAYER_SYNC_STRIDE; // 0, 1, 2
+			int baseType = ptype % PLAYER_SYNC_STRIDE;
 
-			// 나중에: STC_PT_StateUpdate, STC_PT_Damage, STC_PT_DrawCard 등등 추가
-		default:
-			// 모르는 패킷이면 무시
-			break;
+			PlayerData& targetPlayer = g_Game.m_State.players[playerIndex];
+
+			switch (baseType)
+			{
+			case SYNC_HP:
+				recv(sock, (char*)&targetPlayer.hp, sizeof(int), MSG_WAITALL);
+				break;
+			case SYNC_MAX_MANA:
+				recv(sock, (char*)&targetPlayer.maxMana, sizeof(float), MSG_WAITALL);
+				break;
+			case SYNC_MANA:
+				recv(sock, (char*)&targetPlayer.mana, sizeof(float), MSG_WAITALL);
+				break;
+			case SYNC_DEFFENCE:
+				recv(sock, (char*)&targetPlayer.defence, sizeof(int), MSG_WAITALL);
+				break;
+			case SYNC_ATTACK:
+				recv(sock, (char*)&targetPlayer.attack, sizeof(int), MSG_WAITALL);
+				break;
+			case SYNC_POS:
+				recv(sock, (char*)&targetPlayer.pos, sizeof(Pos), MSG_WAITALL);
+				break;
+			case SYNC_HAND_SLOT_0:
+				recv(sock, (char*)&targetPlayer.hand[0], sizeof(CardData), MSG_WAITALL);
+				break;
+			case SYNC_HAND_SLOT_1:
+				recv(sock, (char*)&targetPlayer.hand[0], sizeof(CardData), MSG_WAITALL);
+				break;
+			case SYNC_HAND_SLOT_2:
+				recv(sock, (char*)&targetPlayer.hand[0], sizeof(CardData), MSG_WAITALL);
+				break;
+			case SYNC_HAND_SLOT_3:
+				recv(sock, (char*)&targetPlayer.hand[0], sizeof(CardData), MSG_WAITALL);
+				break;
+			case SYNC_HAND_SLOT_4:
+				recv(sock, (char*)&targetPlayer.hand[0], sizeof(CardData), MSG_WAITALL);
+				break;
+			case SYNC_PLAYER_DEATH:
+				recv(sock, (char*)&targetPlayer.playerdeath, sizeof(bool), MSG_WAITALL);
+				break;
+			case SYNC_CUTTING:
+				recv(sock, (char*)&targetPlayer.cutting, sizeof(bool), MSG_WAITALL);
+				break;
+			case SYNC_INVINCIBLE:
+				recv(sock, (char*)&targetPlayer.invincible, sizeof(bool), MSG_WAITALL);
+				break;
+			case SYNC_IS_CASTING_ONEPUNCH:
+				recv(sock, (char*)&targetPlayer.isCastingOnePunch, sizeof(bool), MSG_WAITALL);
+				break;
+			case SYNC_ONEPUNCH_TIMER:
+				recv(sock, (char*)&targetPlayer.onePunchCastTimer, sizeof(float), MSG_WAITALL);
+				break;
+			case SYNC_ONEPUNCH_DAMAGE:
+				recv(sock, (char*)&targetPlayer.onePunchStoredDamage, sizeof(int), MSG_WAITALL);
+				break;
+			case SYNC_PARING_MOMENT:
+				recv(sock, (char*)&targetPlayer.ParingMoment, sizeof(bool), MSG_WAITALL);
+				break;
+			}
+		}
+		else {
+			switch ((ServerToClient_ProtocolType)ptype)
+			{
+			case STC_PT_InitGame: // 99번 게임 초기화 값
+			{
+				GameState initialState;
+				int clientIndex;
+
+				recv(sock, (char*)&clientIndex, sizeof(int), MSG_WAITALL);
+				recv(sock, (char*)&initialState, sizeof(GameState), MSG_WAITALL);
+
+				g_myPlayerIndex = clientIndex;
+				g_Game.UpdateStateFromServer(initialState); 
+				break;
+			}
+			case STC_Sync_MapData: // 116번
+				recv(sock, (char*)g_Game.m_State.mapData, sizeof(g_Game.m_State.mapData), MSG_WAITALL);
+				break;
+			}
 		}
 
-		InvalidateRect(g_hWnd, NULL, FALSE); // 화면 갱신
+		ReleaseMutex(g_hMutexGameState);
+
+		InvalidateRect(g_hWnd, NULL, FALSE);
 	}
 	return 0;
 }
@@ -1173,6 +1265,22 @@ void Game::OnKeyUp(WPARAM wParam)
 	}
 }
 
+void Game::UpdateStateFromServer(const GameState& newState)
+{
+	for (int i = 0; i < GameState::playerCount; ++i) {
+		m_State.players[i] = newState.players[i];
+	}
+
+	m_State.boss = newState.boss;
+	memcpy(m_State.mapData, newState.mapData, sizeof(m_State.mapData));
+
+	m_State.PvEMode = newState.PvEMode;
+	m_State.GameClear = newState.GameClear;
+	m_State.tempstop = newState.tempstop;
+	m_State.dontattackcard = newState.dontattackcard;
+
+}
+
 bool ClientLogic::ConnectToServerAndStart(HWND hWnd)
 {
 	if (sock != 0 && sock != INVALID_SOCKET) {
@@ -1321,6 +1429,11 @@ void ClientLogic::HandleLButtonDown(const GameState& state, PresentationState& p
 		if (x >= 900 && x <= 1150 && y >= 610 && y <= 660) PostQuitMessage(0); // 게임종료
 	}
 	else {
+		if (g_myPlayerIndex < 0 || g_myPlayerIndex >= GameState::playerCount) {
+			return; // 아직 매칭 중이므로 클릭 무시
+		}
+		const PlayerData& myPlayer = state.players[g_myPlayerIndex];
+
 		if (state.PvEMode) { // 레이드
 			if (x >= 175 && x <= 225 && y >= 15 && y <= 65) { //일시정지
 				//state.tempstop = !state.tempstop;
@@ -1331,7 +1444,7 @@ void ClientLogic::HandleLButtonDown(const GameState& state, PresentationState& p
 				//state.player->mana = 0; // 턴 종료
 
 			for (int i = 0; i < 5; ++i) {
-				if (pState.hand[i].on && x >= pState.hand[i].x - 70 && x <= pState.hand[i].x + 70 && y >= pState.hand[i].y - 100 && y <= pState.hand[i].y + 100 && !(state.player->isCastingOnePunch)) {
+				if (pState.hand[i].on && x >= pState.hand[i].x - 70 && x <= pState.hand[i].x + 70 && y >= pState.hand[i].y - 100 && y <= pState.hand[i].y + 100 && !(myPlayer.isCastingOnePunch)) {
 					pState.hand[i].drag = true;
 				}
 				else pState.hand[i].drag = false;
@@ -1350,7 +1463,7 @@ void ClientLogic::HandleLButtonDown(const GameState& state, PresentationState& p
 				//state.player->mana = 0; // 턴 종료
 
 			for (int i = 0; i < 5; ++i) {
-				if (pState.hand[i].on && x >= pState.hand[i].x - 70 && x <= pState.hand[i].x + 70 && y >= pState.hand[i].y - 100 && y <= pState.hand[i].y + 100 && !state.player->isCastingOnePunch) {
+				if (pState.hand[i].on && x >= pState.hand[i].x - 70 && x <= pState.hand[i].x + 70 && y >= pState.hand[i].y - 100 && y <= pState.hand[i].y + 100 && !(myPlayer.isCastingOnePunch)) {
 					pState.hand[i].drag = true;
 				}
 				else pState.hand[i].drag = false;
@@ -2207,20 +2320,24 @@ void Renderer::DrawHUD(HDC hdc, const GameState& state, const PresentationState&
 	HPEN hPen, oldPen;
 
 	if (!pState.StartScreen) {
-		if (state.player == nullptr)
+		if (g_myPlayerIndex < 0 || g_myPlayerIndex >= GameState::playerCount)
 		{
 			hFont = CreateFont(100, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET,
 				OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
 				DEFAULT_PITCH | FF_SWISS, L"Arial");
 			hOldFont = (HFONT)SelectObject(hdc, hFont);
 			SetBkMode(hdc, TRANSPARENT);
-			SetTextColor(hdc, RGB(255, 255, 255)); 
+			SetTextColor(hdc, RGB(255, 255, 255));
 			TextOut(hdc, 400, 350, L"매칭 중...", 6);
 			SelectObject(hdc, hOldFont);
 			DeleteObject(hFont);
 
 			return;
 		}
+
+		const PlayerData& myPlayer = state.players[g_myPlayerIndex];
+		const PlayerPresentation& myPState = pState.players[g_myPlayerIndex];
+
 		if (pState.startstart) {
 			hFont = CreateFont(200, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET,
 				OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
@@ -2261,14 +2378,14 @@ void Renderer::DrawHUD(HDC hdc, const GameState& state, const PresentationState&
 		// HP
 		SetTextColor(hdc, RGB(0, 0, 0));
 		TextOut(hdc, 300, 25, L"HP", 2);
-		HPBar(hdc, 410, 50, state.player->hp);
+		HPBar(hdc, 410, 50, myPlayer.hp);
 		TCHAR tempBuffer[32];
-		if (pState.player->effect_anim_data.decresehp) { // HP 감소 효과
+		if (myPState.effect_anim_data.decresehp) {
 			SetTextColor(hdc, RGB(200, 33, 33));
 			wsprintf(tempBuffer, L"-%d", pState.dedamge);
 			TextOut(hdc, 400, 18, tempBuffer, lstrlen(tempBuffer));
 		}
-		if (pState.player->effect_anim_data.myheal) { // HP 회복 효과
+		if (myPState.effect_anim_data.myheal) {
 			SetTextColor(hdc, RGB(33, 200, 33));
 			wsprintf(tempBuffer, L"+%d", pState.healenergy);
 			TextOut(hdc, 400, 18, tempBuffer, lstrlen(tempBuffer));
@@ -2276,15 +2393,15 @@ void Renderer::DrawHUD(HDC hdc, const GameState& state, const PresentationState&
 
 		// Defense
 		SetTextColor(hdc, RGB(0, 33, 255));
-		wsprintf(tempBuffer, L"%d", state.player->defence);
+		wsprintf(tempBuffer, L"%d", myPlayer.defence);
 		TextOut(hdc, 580, 25, tempBuffer, lstrlen(tempBuffer));
 
-		if (pState.player->effect_anim_data.defUp) {
+		if (myPState.effect_anim_data.defUp) {
 			SetTextColor(hdc, RGB(33, 33, 33));
 			wsprintf(tempBuffer, L"+%d", pState.defenseup);
 			TextOut(hdc, 620, 18, tempBuffer, lstrlen(tempBuffer));
 		}
-		if (pState.player->effect_anim_data.defDown) {
+		if (myPState.effect_anim_data.defDown) {
 			SetTextColor(hdc, RGB(33, 33, 33));
 			wsprintf(tempBuffer, L"-%d", pState.defensedown);
 			TextOut(hdc, 620, 18, tempBuffer, lstrlen(tempBuffer));
@@ -2292,15 +2409,15 @@ void Renderer::DrawHUD(HDC hdc, const GameState& state, const PresentationState&
 
 		// Attack
 		SetTextColor(hdc, RGB(255, 33, 0));
-		wsprintf(tempBuffer, L"%d", state.player->attack);
+		wsprintf(tempBuffer, L"%d", myPlayer.attack);
 		TextOut(hdc, 700, 25, tempBuffer, lstrlen(tempBuffer));
 
-		if (pState.player->effect_anim_data.powerUp) {
+		if (myPState.effect_anim_data.powerUp) {
 			SetTextColor(hdc, RGB(33, 33, 33));
 			wsprintf(tempBuffer, L"+%d", pState.plusattack);
 			TextOut(hdc, 740, 18, tempBuffer, lstrlen(tempBuffer));
 		}
-		if (pState.player->effect_anim_data.powerDown) {
+		if (myPState.effect_anim_data.powerDown) {
 			SetTextColor(hdc, RGB(33, 33, 33));
 			wsprintf(tempBuffer, L"-%d", pState.minusattack);
 			TextOut(hdc, 740, 18, tempBuffer, lstrlen(tempBuffer));
@@ -2321,15 +2438,15 @@ void Renderer::DrawHUD(HDC hdc, const GameState& state, const PresentationState&
 		SetTextColor(hdc, RGB(33, 33, 33));
 
 		//wsprintf(tempBuffer, L"%d / %d", state.player->mana, state.player->maxMana);
-		_stprintf_s(tempBuffer, sizeof(tempBuffer) / sizeof(TCHAR), L"%.2f", state.player->mana);
+		_stprintf_s(tempBuffer, sizeof(tempBuffer) / sizeof(TCHAR), L"%.2f", myPlayer.mana);
 		TextOut(hdc, 65, 600, tempBuffer, lstrlen(tempBuffer));
 
-		if (pState.player->effect_anim_data.manaUp) {
+		if (myPState.effect_anim_data.manaUp) {
 			SetTextColor(hdc, RGB(150, 150, 150));
 			wsprintf(tempBuffer, L"+%d", pState.healmana);
 			TextOut(hdc, 145, 580, tempBuffer, lstrlen(tempBuffer));
 		}
-		if (pState.player->effect_anim_data.manaDown) {
+		if (myPState.effect_anim_data.manaDown) {
 			SetTextColor(hdc, RGB(150, 150, 150));
 			wsprintf(tempBuffer, L"-%d", pState.killmana);
 			TextOut(hdc, 145, 610, tempBuffer, lstrlen(tempBuffer));
