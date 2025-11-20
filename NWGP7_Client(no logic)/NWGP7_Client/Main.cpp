@@ -835,7 +835,6 @@ enum PlayerSyncBase {
 	SYNC_ONEPUNCH_TIMER = 18,
 	SYNC_ONEPUNCH_DAMAGE = 19,
 	SYNC_PARING_MOMENT = 20,
-
 };
 
 const int PLAYER_SYNC_STRIDE = 32;
@@ -1227,22 +1226,32 @@ void Game::OnKeyDown(WPARAM wParam)
 	if (wParam == 'W' && inputdata.WPress == false) {
 		//m_State.player->Move(0, 1);
 		inputdata.WPress = true;
+		char buf[2] = { 0, 'w' };
+		send(sock, buf, 2, 0);
 	}
 	else if (wParam == 'A' && inputdata.APress == false) {
 		//m_State.player->Move(-1, 0);
 		inputdata.APress = true;
+		char buf[2] = { 0, 'a' };
+		send(sock, buf, 2, 0);
 	}
 	else if (wParam == 'S' && inputdata.SPress == false) {
 		//m_State.player->Move(0, -1);
 		inputdata.SPress = true;
+		char buf[2] = { 0, 's' };
+		send(sock, buf, 2, 0);
 	}
 	else if (wParam == 'D' && inputdata.DPress == false) {
 		//m_State.player->Move(1, 0);
 		inputdata.DPress = true;
+		char buf[2] = { 0, 'd' };
+		send(sock, buf, 2, 0);
 	}
 	else if (wParam == VK_SPACE && inputdata.SpacePress == false) {
 		inputdata.SpacePress = true;
 		//m_State.player->ParingMoment = true;
+		char buf[2] = { 0, VK_SPACE };
+		send(sock, buf, 2, 0);
 	}
 }
 
