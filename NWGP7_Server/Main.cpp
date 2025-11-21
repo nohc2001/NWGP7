@@ -651,8 +651,6 @@ void GameLogic::Initialize(GameState& state)
 {
 	srand((unsigned int)time(NULL));
 
-	//state.player = &state.players[0];
-
 	for (int i = 0; i < 3; ++i) { // 3 플레이어 초기화
 
 		for (int i = 0; i < 5; ++i) {
@@ -664,7 +662,7 @@ void GameLogic::Initialize(GameState& state)
 		state.players[i].defence = 0;
 		state.players[i].hp = 0;
 		state.players[i].mana = 0;
-		state.players[i].maxMana = 0;
+		state.players[i].maxMana = 3;
 		state.players[i].attack = 0;
 
 		state.players[i].playerdeath = false;

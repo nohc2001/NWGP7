@@ -288,10 +288,10 @@ public:
 
 	BossPresentation boss;
 	CardUI hand[5];
-
+	
 	bool boomswitch = false, Sniper = false, One = false, sword = false;
 	bool quake = false;
-	bool droww = false; // 카드 뽑기
+	bool droww = true; // 카드 뽑기
 	bool trunendd = false; // 턴 종료
 	bool dehp = false; // 적 피격
 	bool startstart = false, endend = false, pdeath = false; // 자막
@@ -1280,6 +1280,11 @@ void Game::UpdateStateFromServer(const GameState& newState)
 		m_State.players[i] = newState.players[i];
 	}
 
+	// 카드 덱 동기화
+	for (int i = 0; i < 5; ++i) {
+		m_PState.hand[i].id = newState.players[g_myPlayerIndex].hand[i].id;
+	}
+
 	m_State.boss = newState.boss;
 	memcpy(m_State.mapData, newState.mapData, sizeof(m_State.mapData));
 
@@ -1429,6 +1434,7 @@ void ClientLogic::HandleLButtonDown(const GameState& state, PresentationState& p
 			connectSucess = ConnectToServerAndStart(hWnd);
 			if (connectSucess) {
 				participateInMatch(false);
+				pState.InitializeBattleVisuals(state.boss.id);
 				pState.StartScreen = false;
 			}
 			else {
