@@ -817,30 +817,30 @@ void participateInMatch(bool ispvp) {
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdParam, int nCmdShow)
 {
-	char* SERVERIP = (char*)"192.168.65.118";
-	int retval;
+	//char* SERVERIP = (char*)"192.168.65.118";
+	//int retval;
 
-	WSADATA wsa;
-	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
-		return 1;
-	}
+	//WSADATA wsa;
+	//if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
+	//	return 1;
+	//}
 
-	sock = socket(AF_INET, SOCK_STREAM, 0);
-	if (sock == INVALID_SOCKET) {
-		cout << "소켓 생성에 실패했습니다." << endl;
-		return 0;
-	}
+	//sock = socket(AF_INET, SOCK_STREAM, 0);
+	//if (sock == INVALID_SOCKET) {
+	//	cout << "소켓 생성에 실패했습니다." << endl;
+	//	//return 0;
+	//}
 
-	struct sockaddr_in serveraddr;
-	memset(&serveraddr, 0, sizeof(serveraddr));
-	serveraddr.sin_family = AF_INET;
-	inet_pton(AF_INET, SERVERIP, &serveraddr.sin_addr);
-	serveraddr.sin_port = htons(SERVERPORT);
-	retval = connect(sock, (struct sockaddr*)&serveraddr, sizeof(serveraddr));
-	if (retval == SOCKET_ERROR) {
-		cout << "서버 접속에 실패했습니다." << endl;
-		return 0;
-	}
+	//struct sockaddr_in serveraddr;
+	//memset(&serveraddr, 0, sizeof(serveraddr));
+	//serveraddr.sin_family = AF_INET;
+	//inet_pton(AF_INET, SERVERIP, &serveraddr.sin_addr);
+	//serveraddr.sin_port = htons(SERVERPORT);
+	//retval = connect(sock, (struct sockaddr*)&serveraddr, sizeof(serveraddr));
+	//if (retval == SOCKET_ERROR) {
+	//	cout << "서버 접속에 실패했습니다." << endl;
+	//	//return 0;
+	//}
 
 	HWND hWnd;
 	MSG Message;

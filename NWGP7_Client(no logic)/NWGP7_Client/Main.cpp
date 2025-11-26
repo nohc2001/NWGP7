@@ -764,7 +764,7 @@ public:
 	void HandleLButtonDown(const GameState& state, PresentationState& pState, int x, int y, HWND hWnd);
 	void HandleLButtonUp(const GameState& state, PresentationState& pState, int x, int y, HWND hWnd);
 	void OnServerEvent(PresentationState& pState /*eventPacket*/);
-	void PlayCard(int cardID, int enemyID, short gridX, short gridY);
+	void PlayCard(int cardindex, int enemyID, short gridX, short gridY);
 };
 
 class Renderer {
@@ -883,7 +883,8 @@ struct OP {
 		char key;
 	};
 	struct OP_PLAYCARD {
-		int cardID;
+		short playerID;
+		short cardindex;
 		int enemyID;
 		short pos_x;
 		short pos_y;
@@ -901,7 +902,8 @@ struct OP {
 	OP() {}
 	OP(const OP& n) {
 		ptype = n.ptype;
-		op_playcard.cardID = n.op_playcard.cardID;
+		op_playcard.playerID = n.op_playcard.playerID;
+		op_playcard.cardindex = n.op_playcard.cardindex;
 		op_playcard.enemyID = n.op_playcard.enemyID;
 		op_playcard.pos_x = n.op_playcard.pos_x;
 		op_playcard.pos_y = n.op_playcard.pos_y;
@@ -1013,22 +1015,36 @@ unsigned __stdcall Recv_Thread(void* arg)
 				targetPlayer.pos.y = recent_stcOP.op_playerpos.posy;
 				break;
 			}
-				
 			case SYNC_HAND_SLOT_0:
+			{
 				recv(sock, (char*)&targetPlayer.hand[0], sizeof(CardData), MSG_WAITALL);
+				g_Game.m_PState.hand[0].id = targetPlayer.hand[0].id;
 				break;
+			}
 			case SYNC_HAND_SLOT_1:
-				recv(sock, (char*)&targetPlayer.hand[0], sizeof(CardData), MSG_WAITALL);
+			{
+				recv(sock, (char*)&targetPlayer.hand[1], sizeof(CardData), MSG_WAITALL);
+				g_Game.m_PState.hand[1].id = targetPlayer.hand[1].id;
 				break;
+			}
 			case SYNC_HAND_SLOT_2:
-				recv(sock, (char*)&targetPlayer.hand[0], sizeof(CardData), MSG_WAITALL);
+			{
+				recv(sock, (char*)&targetPlayer.hand[2], sizeof(CardData), MSG_WAITALL);
+				g_Game.m_PState.hand[2].id = targetPlayer.hand[2].id;
 				break;
+			}
 			case SYNC_HAND_SLOT_3:
-				recv(sock, (char*)&targetPlayer.hand[0], sizeof(CardData), MSG_WAITALL);
+			{
+				recv(sock, (char*)&targetPlayer.hand[3], sizeof(CardData), MSG_WAITALL);
+				g_Game.m_PState.hand[3].id = targetPlayer.hand[3].id;
 				break;
+			}
 			case SYNC_HAND_SLOT_4:
-				recv(sock, (char*)&targetPlayer.hand[0], sizeof(CardData), MSG_WAITALL);
+			{
+				recv(sock, (char*)&targetPlayer.hand[4], sizeof(CardData), MSG_WAITALL);
+				g_Game.m_PState.hand[4].id = targetPlayer.hand[4].id;
 				break;
+			}
 			case SYNC_PLAYER_DEATH:
 				recv(sock, (char*)&targetPlayer.playerdeath, sizeof(bool), MSG_WAITALL);
 				break;
@@ -1494,8 +1510,10 @@ void ClientLogic::HandleLButtonDown(const GameState& state, PresentationState& p
 				//else SetTimer(hWnd, 1, 100, NULL);
 			}
 			if (x >= 1050 && x <= 1120 && y >= 600 && y <= 655)
+			{ 
 				//state.player->mana = 0; // 턴 종료
-
+			}
+				
 			for (int i = 0; i < 5; ++i) {
 				if (pState.hand[i].on && x >= pState.hand[i].x - 70 && x <= pState.hand[i].x + 70 && y >= pState.hand[i].y - 100 && y <= pState.hand[i].y + 100 && !(myPlayer.isCastingOnePunch)) {
 					pState.hand[i].drag = true;
@@ -1518,8 +1536,8 @@ void ClientLogic::HandleLButtonDown(const GameState& state, PresentationState& p
 			for (int i = 0; i < 5; ++i) {
 				if (pState.hand[i].on && x >= pState.hand[i].x - 70 && x <= pState.hand[i].x + 70 && y >= pState.hand[i].y - 100 && y <= pState.hand[i].y + 100 && !(myPlayer.isCastingOnePunch)) {
 					pState.hand[i].drag = true;
-				}
-				else pState.hand[i].drag = false;
+				}/*
+				else pState.hand[i].drag = false;*/
 			}
 			if (x >= 10 && x <= 70 && y >= 10 && y <= 70) {
 				pState.StartScreen = true; // 시작 화면으로
@@ -1540,7 +1558,8 @@ void ClientLogic::HandleLButtonUp(const GameState& state, PresentationState& pSt
 				else if (i == 4) { pState.hand[i].x = 900; pState.hand[i].y = 700; }
 
 				if (pState.enermytouch) { // 카드 발동
-					//PlayCard(pState.hand[i].id, )
+					//cout << "PlayCard!" << endl;
+					PlayCard(i, 0, 0, 0);
 				}
 				pState.hand[i].drag = false;
 			}
@@ -1691,25 +1710,32 @@ void ClientLogic::OnServerEvent(PresentationState& pState)
 
 }
 
-void ClientLogic::PlayCard(int cardID, int enemyID, short gridX, short gridY)
+void ClientLogic::PlayCard(int cardindex, int enemyID, short gridX, short gridY)
 {
 	OP packet;
 	packet.ptype = CTS_PT_PlayCard;
-	packet.op_playcard.cardID = cardID;
+	packet.op_playcard.playerID = g_myPlayerIndex;
+	packet.op_playcard.cardindex = cardindex;
 	packet.op_playcard.enemyID = enemyID;
 	packet.op_playcard.pos_x = gridX;
 	packet.op_playcard.pos_y = gridY;
 
-	std::vector<char> buffer(13);
-	buffer[0] = 1;
-	memcpy(&buffer[1], &cardID, sizeof(int));
-	memcpy(&buffer[5], &enemyID, sizeof(int));
-	memcpy(&buffer[9], &gridX, sizeof(short));
-	memcpy(&buffer[11], &gridY, sizeof(short));
+	int retval = send(sock, (char*)&packet, sizeof(OP), 0);
+	if (retval == SOCKET_ERROR) {
+		cout << "전송을 실패했습니다." << endl;
+		return;
+	}
 
-	WaitForSingleObject(g_hMutexSendQueue, INFINITE);
+	//std::vector<char> buffer(13);
+	//buffer[0] = 1;
+	//memcpy(&buffer[1], &cardID, sizeof(int));
+	//memcpy(&buffer[5], &enemyID, sizeof(int));
+	//memcpy(&buffer[9], &gridX, sizeof(short));
+	//memcpy(&buffer[11], &gridY, sizeof(short));
+
+	/*WaitForSingleObject(g_hMutexSendQueue, INFINITE);
 	g_SendQueue.push(buffer);
-	ReleaseMutex(g_hMutexSendQueue);
+	ReleaseMutex(g_hMutexSendQueue);*/
 }
 
 void PresentationState::Initialize()

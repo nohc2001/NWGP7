@@ -92,7 +92,8 @@ struct OP {
 		char key;
 	};
 	struct OP_PLAYCARD {
-		int cardID;
+		short playerID;
+		short cardindex;
 		int enemyID;
 		short pos_x;
 		short pos_y;
@@ -110,7 +111,8 @@ struct OP {
 	OP() {}
 	OP(const OP& n) {
 		ptype = n.ptype;
-		op_playcard.cardID = n.op_playcard.cardID;
+		op_playcard.playerID = n.op_playcard.playerID;
+		op_playcard.cardindex = n.op_playcard.cardindex;
 		op_playcard.enemyID = n.op_playcard.enemyID;
 		op_playcard.pos_x = n.op_playcard.pos_x;
 		op_playcard.pos_y = n.op_playcard.pos_y;
@@ -356,7 +358,6 @@ vector<TryMatch> MatchingArr;
 
 thread_local int threadID;
 
-
 struct ClientLocalParam {
 	int thread_id;
 	SOCKET sock;
@@ -518,7 +519,12 @@ void ExecuteOP(BattleData& bd) {
 			}
 			break;
 		}
-			
+		case CTS_PT_PlayCard:
+		{
+			printf("player %d Use Card index : %d \n", op.op_playcard.playerID, op.op_playcard.cardindex);
+			bd.gameLogic.PlayCard(bd.gameState, op.op_playcard.cardindex, bd, op.op_playcard.playerID);
+			break;
+		}
 		}
 
 		//next op
@@ -1256,7 +1262,9 @@ void GameLogic::PlayCard(GameState& state, int cardIndex, BattleData& bd, int pl
 		CardData newCard = card;
 		char ptypeCard = (playerIndex * PLAYER_SYNC_STRIDE) + (SYNC_HAND_SLOT_0 + cardIndex);
 		RecordSTCPacket(bd, ptypeCard, &newCard, sizeof(CardData));
+
 		// 마나 다운 애니메이션 이벤트
+		
 		// 카드 사용 애니매이션 이벤트
 	}
 }
