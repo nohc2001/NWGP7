@@ -152,6 +152,8 @@ struct PlayerData {
 	float onePunchCastTimer = 0.0f;  
 	int onePunchStoredDamage = 0; 
 	bool ParingMoment = false;
+
+	void* clientData; // nullptr
 };
 
 struct PlayerPresentation {
@@ -860,10 +862,24 @@ enum ServerToClient_ProtocolType {
 	STC_Sync_MapData = 116,
 };
 
+struct STC_OP {
+	int ptype;
+
+	struct STC_OP_PlayerPos {
+		short posx;
+		short posy;
+	};
+
+	union {
+		STC_OP_PlayerPos op_playerpos;
+	};
+};
+
 struct OP {
 	int ptype;
 
 	struct OP_KEY {
+		char playerID;
 		char key;
 	};
 	struct OP_PLAYCARD {
@@ -905,8 +921,10 @@ HWND g_hWnd;
 int g_myPlayerIndex = -1;
 
 void participateInMatch(bool ispvp) {
-	char buff[2] = { 2, ispvp };
-	int n = send(sock, buff, 2, 0);
+	OP op;
+	op.ptype = CTS_PT_Participant;
+	op.op_part.ispvp = ispvp;
+	int n = send(sock, (char*)&op, sizeof(OP), 0);
 	if (n == SOCKET_ERROR) {
 		cout << "전송을 실패했습니다." << endl;
 		return;
@@ -950,12 +968,12 @@ unsigned __stdcall Send_Thread(void* arg)
 unsigned __stdcall Recv_Thread(void* arg)
 {
 	SOCKET sock = (SOCKET)arg;
-	char ptype;
+	STC_OP recent_stcOP;
 	int retval;
 
 	while (true)
 	{
-		retval = recv(sock, &ptype, 1, MSG_WAITALL);
+		retval = recv(sock, (char*) & recent_stcOP.ptype, sizeof(int), MSG_WAITALL);
 
 		if (retval == SOCKET_ERROR || retval == 0) {
 			MessageBox(g_hWnd, L"서버와의 연결이 끊겼습니다.", L"접속 종료", MB_OK);
@@ -965,9 +983,9 @@ unsigned __stdcall Recv_Thread(void* arg)
 
 		WaitForSingleObject(g_hMutexGameState, INFINITE);
 
-		if (ptype >= 0 && ptype < 96) {
-			int playerIndex = ptype / PLAYER_SYNC_STRIDE; // 0, 1, 2
-			int baseType = ptype % PLAYER_SYNC_STRIDE;
+		if (recent_stcOP.ptype >= 0 && recent_stcOP.ptype < 96) {
+			int playerIndex = recent_stcOP.ptype / PLAYER_SYNC_STRIDE; // 0, 1, 2
+			int baseType = recent_stcOP.ptype % PLAYER_SYNC_STRIDE;
 
 			PlayerData& targetPlayer = g_Game.m_State.players[playerIndex];
 
@@ -989,8 +1007,13 @@ unsigned __stdcall Recv_Thread(void* arg)
 				recv(sock, (char*)&targetPlayer.attack, sizeof(int), MSG_WAITALL);
 				break;
 			case SYNC_POS:
-				recv(sock, (char*)&targetPlayer.pos, sizeof(Pos), MSG_WAITALL);
+			{
+				recv(sock, (char*)&recent_stcOP.op_playerpos, sizeof(short)*2, MSG_WAITALL);
+				targetPlayer.pos.x = recent_stcOP.op_playerpos.posx;
+				targetPlayer.pos.y = recent_stcOP.op_playerpos.posy;
 				break;
+			}
+				
 			case SYNC_HAND_SLOT_0:
 				recv(sock, (char*)&targetPlayer.hand[0], sizeof(CardData), MSG_WAITALL);
 				break;
@@ -1030,7 +1053,7 @@ unsigned __stdcall Recv_Thread(void* arg)
 			}
 		}
 		else {
-			switch ((ServerToClient_ProtocolType)ptype)
+			switch ((ServerToClient_ProtocolType)recent_stcOP.ptype)
 			{
 			case STC_PT_InitGame: // 99번 게임 초기화 값
 			{
@@ -1175,7 +1198,8 @@ void Game::OnCreate(HWND hWnd, HINSTANCE hInst)
 	m_PState.Initialize();
 
 	SetTimer(m_hWnd, 1, 17, NULL);
-	PlaySound(TEXT("Lost Forest1.wav"), NULL, SND_FILENAME | SND_ASYNC);
+	//PlaySound(TEXT("Lost Forest1.wav"), NULL, SND_FILENAME | SND_ASYNC);
+	//$Later temporaly Stopping. because it too loud in testing 3 Client in matching.
 }
 
 void Game::OnDestroy()
@@ -1226,32 +1250,47 @@ void Game::OnKeyDown(WPARAM wParam)
 	if (wParam == 'W' && inputdata.WPress == false) {
 		//m_State.player->Move(0, 1);
 		inputdata.WPress = true;
-		char buf[2] = { 0, 'w' };
-		send(sock, buf, 2, 0);
+		OP op;
+		op.ptype = CTS_PT_KeyInput;
+		op.op_key.playerID = g_myPlayerIndex;
+		op.op_key.key = 'W';
+		send(sock, (char*) & op, sizeof(OP), 0);
 	}
 	else if (wParam == 'A' && inputdata.APress == false) {
 		//m_State.player->Move(-1, 0);
 		inputdata.APress = true;
-		char buf[2] = { 0, 'a' };
-		send(sock, buf, 2, 0);
+		OP op;
+		op.ptype = CTS_PT_KeyInput;
+		op.op_key.playerID = g_myPlayerIndex;
+		op.op_key.key = 'A';
+		send(sock, (char*)&op, sizeof(OP), 0);
 	}
 	else if (wParam == 'S' && inputdata.SPress == false) {
 		//m_State.player->Move(0, -1);
 		inputdata.SPress = true;
-		char buf[2] = { 0, 's' };
-		send(sock, buf, 2, 0);
+		OP op;
+		op.ptype = CTS_PT_KeyInput;
+		op.op_key.playerID = g_myPlayerIndex;
+		op.op_key.key = 'S';
+		send(sock, (char*)&op, sizeof(OP), 0);
 	}
 	else if (wParam == 'D' && inputdata.DPress == false) {
 		//m_State.player->Move(1, 0);
 		inputdata.DPress = true;
-		char buf[2] = { 0, 'd' };
-		send(sock, buf, 2, 0);
+		OP op;
+		op.ptype = CTS_PT_KeyInput;
+		op.op_key.playerID = g_myPlayerIndex;
+		op.op_key.key = 'D';
+		send(sock, (char*)&op, sizeof(OP), 0);
 	}
 	else if (wParam == VK_SPACE && inputdata.SpacePress == false) {
 		inputdata.SpacePress = true;
 		//m_State.player->ParingMoment = true;
-		char buf[2] = { 0, VK_SPACE };
-		send(sock, buf, 2, 0);
+		OP op;
+		op.ptype = CTS_PT_KeyInput;
+		op.op_key.playerID = g_myPlayerIndex;
+		op.op_key.key = VK_SPACE;
+		send(sock, (char*)&op, sizeof(OP), 0);
 	}
 }
 
@@ -1428,7 +1467,6 @@ void ClientLogic::HandleLButtonDown(const GameState& state, PresentationState& p
 			else {
 				pState.StartScreen = true;
 			}
-			
 		}
 		if (x >= 900 && x <= 1150 && y >= 530 && y <= 580) { // 레이드
 			connectSucess = ConnectToServerAndStart(hWnd);

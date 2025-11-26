@@ -48,7 +48,6 @@ enum PlayerSyncBase {
 const int PLAYER_SYNC_STRIDE = 32;
 
 enum ServerToClient_ProtocolType {
-
 	// Game Event
 	STC_PT_ThrowCard = 96,
 	STC_PT_Effect_Event = 97,
@@ -68,10 +67,28 @@ enum ServerToClient_ProtocolType {
 	STC_Sync_MapData = 116,
 };
 
+struct STC_OP {
+	int ptype;
+
+	struct STC_OP_PlayerPos {
+		short posx;
+		short posy;
+	};
+
+	union {
+		STC_OP_PlayerPos op_playerpos;
+	};
+
+	void SetPtype_SyncBattleOP(int partID, PlayerSyncBase optype) {
+		ptype = partID * 32 + optype;
+	}
+};
+
 struct OP {
 	int ptype;
 
 	struct OP_KEY {
+		char playerID;
 		char key;
 	};
 	struct OP_PLAYCARD {
@@ -260,6 +277,9 @@ struct PlayerData {
 	float onePunchCastTimer = 0.0f;
 	int onePunchStoredDamage = 0;
 	bool ParingMoment = false;
+	void* clientData;
+
+	void Move(int dx, int dy);
 };
 
 struct GameState {
@@ -358,14 +378,42 @@ struct ClientData {
 	HANDLE hThread;
 	ClientLocalParam param;
 	BattleData* bd = nullptr;
+	int ParticipateID; // player's id in Match. 0, 1, 2
 };
 
 ClientData clients[128] = {};
 int thread_id_up = 0;
 BattleData battles[128] = {};
 int battle_id_up = 0;
-
 thread_local ClientData* clientData;
+
+void PlayerData::Move(int dx, int dy) {
+	ClientData* client = (ClientData*)clientData;
+	pos.x += dx;
+	pos.y += dy;
+	if (pos.x < -2) {
+		pos.x = -2;
+	}
+	else if (pos.x > 2) {
+		pos.x = 2;
+	}
+
+	if (pos.y < -2) {
+		pos.y = -2;
+	}
+	else if (pos.y > 2) {
+		pos.y = 2;
+	}
+
+	STC_OP op;
+	op.SetPtype_SyncBattleOP(client->ParticipateID, PlayerSyncBase::SYNC_POS);
+	op.op_playerpos.posx = pos.x;
+	op.op_playerpos.posy = pos.y;
+	//Send To All Clients
+	for (int i = 0; i < 3; ++i) {
+		int retval = send(clients[client->bd->clientsID[i]].param.sock, (char*)&op, sizeof(STC_OP), 0);
+	}
+}
 
 DWORD WINAPI ProcessClient(LPVOID arg) 
 {
@@ -387,44 +435,52 @@ DWORD WINAPI ProcessClient(LPVOID arg)
 	inet_ntop(AF_INET, &clientaddr.sin_addr, addr, sizeof(addr));
 
 	while (1) {
-		int recv_siz = recv(client_sock, buff, BUFSIZE, 0);
+		OP CurrOP;
+		int recv_siz = recv(client_sock, (char*) & CurrOP, sizeof(OP), 0);
 		if (recv_siz > 0) {
-			switch(buff[0]) {
-			case 0: // 사용자 키보드 입력 정보를 서버에 알리는 프로토콜
-			{
-				OP op;
-				op.ptype = CTS_PT_KeyInput;
-				op.op_key.key = buff[1];
-				clientData->bd->OPQueue.enq(op);
+			if (CurrOP.ptype != 2) {
+				clientData->bd->OPQueue.enq(CurrOP);
 			}
-				break;
-			case 1: // 사용한 카드의 정보를 서버에 알리는 프로토콜
-			{
-				OP op;
-				op.ptype = CTS_PT_PlayCard;
-				op.op_playcard.cardID = *(int*)&buff[1];
-				op.op_playcard.enemyID = *(int*)&buff[5];
-				op.op_playcard.pos_x = *(short*)&buff[9];
-				op.op_playcard.pos_y = *(short*)&buff[11];
-				clientData->bd->OPQueue.enq(op);
-			}
-				break;
-			case 2: // 클라이언트가 게임에 참여한다는걸 알리는 프로토콜
-			{
+			else {
 				//CTS_PT_Participant;
 				if (isParticipant == false) {
 					TryMatch tm;
 					tm.client_id = clientData->param.thread_id;
-					tm.is_pvp = buff[1];
+					tm.is_pvp = CurrOP.op_part.ispvp;
 					matchMutex.lock();
 					MatchingArr.push_back(tm);
 					matchMutex.unlock();
 					printf("%d client participant in match!\n", threadID);
 					isParticipant = true;
 				}
-				break;
 			}
-			}
+
+			//switch(CurrOP.ptype) {
+			//case 0: // 사용자 키보드 입력 정보를 서버에 알리는 프로토콜
+			//{
+			//	OP op;
+			//	op.ptype = CTS_PT_KeyInput;
+			//	op.op_key.playerID = clientData->ParticipateID;
+			//	op.op_key.key = buff[1];
+			//	
+			//}
+			//	break;
+			//case 1: // 사용한 카드의 정보를 서버에 알리는 프로토콜
+			//{
+			//	OP op;
+			//	op.ptype = CTS_PT_PlayCard;
+			//	op.op_playcard.cardID = *(int*)&buff[1];
+			//	op.op_playcard.enemyID = *(int*)&buff[5];
+			//	op.op_playcard.pos_x = *(short*)&buff[9];
+			//	op.op_playcard.pos_y = *(short*)&buff[11];
+			//	clientData->bd->OPQueue.enq(op);
+			//}
+			//	break;
+			//case 2: // 클라이언트가 게임에 참여한다는걸 알리는 프로토콜
+			//{
+			//	
+			//}
+			//}
 		}
 		else if(recv_siz == 0) {
 			break;
@@ -441,7 +497,29 @@ void ExecuteOP(BattleData& bd) {
 	OP op = bd.OPQueue.deq();
 	while (op.ptype >= 0) {
 		// Executing Code
-		printf("optype : %d - key : %c \n", op.ptype, op.op_key.key);
+		switch (op.ptype) {
+		case CTS_PT_KeyInput:
+		{
+			printf("player %d key down : %c \n", op.op_key.playerID, op.op_key.key);
+			int partID = op.op_key.playerID;
+			char key = op.op_key.key;
+
+			if (key == 'W') {
+				bd.gameState.players[partID].Move(0, 1);
+			}
+			else if (key == 'A') {
+				bd.gameState.players[partID].Move(-1, 0);
+			}
+			else if (key == 'S') {
+				bd.gameState.players[partID].Move(0, -1);
+			}
+			else if (key == 'D') {
+				bd.gameState.players[partID].Move(1, 0);
+			}
+			break;
+		}
+			
+		}
 
 		//next op
 		op = bd.OPQueue.deq();
@@ -458,17 +536,17 @@ DWORD WINAPI ProcessBattle(LPVOID arg) {
 	bd.gameLogic.Initialize(bd.gameState);
 	bd.gameLogic.StartBattle(bd.gameState);
 
-	char ptype = STC_PT_InitGame; // 게임 초기값 프로토콜
+	int ptype = STC_PT_InitGame; // 게임 초기값 프로토콜
 
 	for (int i = 0; i < GameState::playerCount; ++i) {
 		int clientId = bd.clientsID[i];
 		if (clientId < 0) continue;
 		SOCKET sock = clients[clientId].param.sock;
 
-		vector<char> initPacket(1 + sizeof(int) + sizeof(GameState));
+		vector<char> initPacket(sizeof(int) + sizeof(int) + sizeof(GameState));
 		int offset = 0;
-		memcpy(initPacket.data() + offset, &ptype, 1);
-		offset += 1;
+		memcpy(initPacket.data() + offset, &ptype, sizeof(int));
+		offset += sizeof(int);
 		memcpy(initPacket.data() + offset, &i, sizeof(int)); 
 		offset += sizeof(int);
 
@@ -561,6 +639,10 @@ DWORD WINAPI ProcessMatching(LPVOID arg) {
 			battles[battle_id_up].clientsID[1] = raid_clientsid[1]->client_id;
 			battles[battle_id_up].clientsID[2] = raid_clientsid[2]->client_id;
 
+			clients[battles[battle_id_up].clientsID[0]].ParticipateID = 0;
+			clients[battles[battle_id_up].clientsID[1]].ParticipateID = 1;
+			clients[battles[battle_id_up].clientsID[2]].ParticipateID = 2;
+
 			battles[battle_id_up].gameState.PvEMode = true;
 			battles[battle_id_up].OPQueue.clear();
 			battles[battle_id_up].hBattleThread = CreateThread(NULL, 0, ProcessBattle, (LPVOID)&battles[battle_id_up], 0, NULL);
@@ -568,6 +650,11 @@ DWORD WINAPI ProcessMatching(LPVOID arg) {
 			c0.bd = &battles[battle_id_up];
 			c1.bd = &battles[battle_id_up];
 			c2.bd = &battles[battle_id_up];
+
+			for (int i = 0; i < 3; ++i) {
+				battles[battle_id_up].gameState.players[i].clientData = &clients[battles[battle_id_up].clientsID[i]];
+			}
+
 			battle_id_up += 1;
 
 			printf("matching! client %d, %d, %d", raid_clientsid[0]->client_id, raid_clientsid[1]->client_id, raid_clientsid[2]->client_id);
@@ -1527,9 +1614,9 @@ void GameLogic::HealBoss(GameState& state, int healAmount, BattleData& bd)
 
 void GameLogic::RecordSTCPacket(BattleData& bd, char ptype, void* data, int dataSize)
 {
-	std::vector<char> packet(1 + dataSize);
-	packet[0] = ptype;
-	memcpy(packet.data() + 1, data, dataSize);
+	std::vector<char> packet(sizeof(int) + dataSize);
+	*(int*)& packet[0] = ptype;
+	memcpy(packet.data() + sizeof(int), data, dataSize);
 
 	bd.STCQueueMutex.lock();
 	bd.STCQueue.push(packet);
