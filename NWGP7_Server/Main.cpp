@@ -284,6 +284,23 @@ struct PlayerData {
 	void Move(int dx, int dy);
 };
 
+enum MapPatternType {
+	PATTERN_NONE = 0,
+	PATTERN_ATTACK = 2,     // 보스 공격
+	PATTERN_WARNING = 3,    // 공격 예고
+};
+
+enum MapItemType {
+	ITEM_NONE = 0,
+	ITEM_HP = 4,            // HP 아이템
+	ITEM_MANA = 5           // 마나 아이템
+};
+
+struct MapTile {
+	int pattern; 
+	int item;
+};
+
 struct GameState {
 public:
 	// 게임 화면 상태
@@ -305,7 +322,7 @@ public:
 
 	// 격자 맵 데이터 및 보스 공격 표시
 	static const int GRID_SIZE = 5;       // 고정된 5x5 격자
-	int mapData[GRID_SIZE][GRID_SIZE] = { 0 };  // 0=빈칸, 1=이동가능, 2=보스공격
+	MapTile mapData[GRID_SIZE][GRID_SIZE] = { 0 };  // 0=빈칸, 1=이동가능, 2=보스공격
 
 };
 
@@ -329,7 +346,6 @@ public:
 	void MapStateRepare(GameState& state, BattleData& bd);
 
 	// if realtime
-	void GameInit(SOCKET sock, const GameState& state, int playerindex, PlayerData& pdata);
 	void UpdateBattle_RealTime(GameState& state, float deltaTime, BattleData& bd);
 	void ExecuteEnemyAI(GameState& state, float deltaTime, BattleData& bd);
 	void UpdateBuffsAndTimers(GameState& state, float deltaTime);
@@ -343,6 +359,9 @@ public:
 	void ApplyDamageToBoss(GameState& state, int playerID, int rawDamage, BattleData& bd);
 	void ApplyDefenseToEnemy(GameState& state, int defense, BattleData& bd);
 	void HealBoss(GameState& state, int healAmount, BattleData& bd);
+
+	void SpawnRandomItem(GameState& state, BattleData& bd);
+	void CheckItemPickup(GameState& state, int playerindex, BattleData& bd);
 
 	void RecordSTCPacket(BattleData& bd, char type, void* data, int dataSize);
 
@@ -373,6 +392,8 @@ struct BattleData {
 
 	queue<vector<char>> STCQueue;
 	mutex STCQueueMutex;
+
+	float itemSpawnTimer = 0.0f; // 아이템 생성 타이머
 };
 
 struct ClientData {
@@ -541,6 +562,7 @@ DWORD WINAPI ProcessBattle(LPVOID arg) {
 
 	bd.gameLogic.Initialize(bd.gameState);
 	bd.gameLogic.StartBattle(bd.gameState);
+	bd.itemSpawnTimer = 0.0f;
 
 	int ptype = STC_PT_InitGame; // 게임 초기값 프로토콜
 
@@ -905,7 +927,7 @@ void GameLogic::AttackWarning(GameState& state, BattleData& bd)
 		int rx = rand() % GameState::GRID_SIZE;
 		int ry = rand() % GameState::GRID_SIZE;
 
-		state.mapData[ry][rx] = 3; // please enum
+		state.mapData[ry][rx].pattern = PATTERN_WARNING;
 	}
 
 	char ptype = STC_Sync_MapData;
@@ -916,8 +938,8 @@ void GameLogic::AttackOnRandomGreed(GameState& state, int damage, BattleData& bd
 {
 	for (int i = 0; i < GameState::GRID_SIZE; ++i) {
 		for (int j = 0; j < GameState::GRID_SIZE; ++j) {
-			if (state.mapData[i][j] == 3) {
-				state.mapData[i][j] = 2;
+			if (state.mapData[i][j].pattern == PATTERN_WARNING) {
+				state.mapData[i][j].pattern = PATTERN_ATTACK;
 			}
 		}
 	}
@@ -925,16 +947,27 @@ void GameLogic::AttackOnRandomGreed(GameState& state, int damage, BattleData& bd
 	char ptype = STC_Sync_MapData;
 	RecordSTCPacket(bd, ptype, state.mapData, sizeof(state.mapData));
 
-	ApplyDamageToPlayer(state, damage, 0, bd); // 데미지 15
-	ApplyDamageToPlayer(state, damage, 1, bd); // 데미지 15
-	ApplyDamageToPlayer(state, damage, 2, bd); // 데미지 15
+	for (int i = 0; i < GameState::playerCount; ++i) {
+		PlayerData& p = state.players[i];
+
+		if (p.playerdeath) continue;
+
+		int px = p.pos.x + 2;
+		int py = 2 - p.pos.y;
+
+		if (px < 0 || px >= GameState::GRID_SIZE || py < 0 || py >= GameState::GRID_SIZE) continue;
+
+		if (state.mapData[py][px].pattern == PATTERN_ATTACK) {
+			ApplyDamageToPlayer(state, damage, i, bd);
+		}
+	}
 }
 
 void GameLogic::MapStateRepare(GameState& state, BattleData& bd)
 {
 	for (int i = 0; i < GameState::GRID_SIZE; i++) {
 		for (int j = 0; j < GameState::GRID_SIZE; j++) {
-			state.mapData[i][j] = 0;
+			state.mapData[i][j].pattern = PATTERN_NONE;
 		}
 	}
 
@@ -1059,54 +1092,39 @@ void GameLogic::ExecuteEnemyAI(GameState& state, float deltaTime, BattleData& bd
 	//}
 }
 
-void GameLogic::GameInit(SOCKET sock, const GameState& state, int playerindex, PlayerData& pdata)
-{
-	char buf[64] = {};
-	int offset = 0;
-
-	//buf[offset++] = STC_PT_Gameinit;          // type
-	buf[offset++] = state.PvEMode ? 1 : 0;
-	buf[offset++] = (uint8_t)playerindex;
-
-	//boss info
-	*(int32_t*)&buf[offset] = state.boss.id;      offset += 4;
-	*(int32_t*)&buf[offset] = state.boss.hp;      offset += 4;
-	*(int32_t*)&buf[offset] = state.boss.defence; offset += 4;
-
-	//player info
-	for (int i = 0; i < GameState::playerCount; ++i) {
-		buf[offset++] = (uint8_t)state.players[i].hp;
-		buf[offset++] = (uint8_t)state.players[i].mana;
-	}
-
-	//card info
-	uint8_t handCount = 5;
-	buf[offset++] = handCount;
-
-	for (int i = 0; i < handCount; ++i) {
-		int cardId = pdata.hand[i].id;                 // state에서 읽기
-		memcpy(&buf[offset], &cardId, sizeof(int)); // buf에 쓰기
-		offset += sizeof(int);
-	}
-
-	send(sock, buf, offset, 0);
-
-}
-
 void GameLogic::UpdateBattle_RealTime(GameState& state, float deltaTime, BattleData& bd)
 {
 	//CardUpdate(state, deltaTime);
+
+	// item spawn
+	constexpr float ITEM_SPAWN_INTERVAL = 10.0f;
+
+	bd.itemSpawnTimer += deltaTime;
+
+	if (bd.itemSpawnTimer >= ITEM_SPAWN_INTERVAL) {
+		bd.itemSpawnTimer = 0.0f;
+
+		SpawnRandomItem(state, bd);
+	}
 
 	//player Update
 	for (int i = 0; i < GameState::playerCount; ++i) {
 		PlayerData& p = state.players[i];
 
+		if (p.playerdeath) continue;
+
 		//mana regen
 		constexpr float manaRegenSpeed = 0.5f;
-		p.mana += deltaTime * manaRegenSpeed;
-		if (p.mana > p.maxMana) {
-			p.mana = p.maxMana;
+		float prevMana = p.mana;
 
+		if (p.mana < p.maxMana) {
+			p.mana += deltaTime * manaRegenSpeed;
+			if (p.mana > p.maxMana) {
+				p.mana = p.maxMana;
+			}
+		}
+		if ((int)(prevMana * 10) != (int)(p.mana * 10))
+		{
 			char ptypeMana = (i * PLAYER_SYNC_STRIDE) + SYNC_MANA;
 			RecordSTCPacket(bd, ptypeMana, &p.mana, sizeof(float));
 		}
@@ -1134,6 +1152,8 @@ void GameLogic::UpdateBattle_RealTime(GameState& state, float deltaTime, BattleD
 				// 일격 & 지진 이펙트 활성화
 			}
 		}
+
+		CheckItemPickup(state, i, bd); // 플레이어 아이템 먹었는지 체크
 	}
 	//boss update
 	if (state.PvEMode) {
@@ -1503,49 +1523,51 @@ void GameLogic::CardUpdate(GameState& state, float deltaTime, BattleData& bd)
 void GameLogic::ApplyDamageToPlayer(GameState& state, int damage, int playerindex, BattleData& bd) {
 	PlayerData& player = state.players[playerindex];
 
-	int px = player.pos.x + 2;
-	int py = 2 - player.pos.y;
+	if (player.invincible) {
+		damage = 0;
+		player.invincible = false;
 
-	for (int i = 0; i < GameState::GRID_SIZE; ++i) {
-		for (int j = 0; j < GameState::GRID_SIZE; ++j) {
-			if (state.mapData[i][j] == 2 && (py == i && px == j)) {
+		bool newInvincible = false;
+		char ptypeInv = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_INVINCIBLE;
+		RecordSTCPacket(bd, ptypeInv, &newInvincible, sizeof(bool));
 
-				if (player.invincible) { // 무적
-					damage = 0;
-					player.invincible = false;
-					bool newInvincible = false;
-					char ptypeInv = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_INVINCIBLE;
-					RecordSTCPacket(bd, ptypeInv, &newInvincible, sizeof(bool));
-				}
-				// 방어력 대비 피 다는거 계산
-				int defenseLost = 0;
-				int hpLost = 0;
-				int initialDefense = player.defence;
-
-				int damageDealt = player.defence - damage;
-				player.defence = (damageDealt > 0) ? damageDealt : 0;
-				int newDef = player.defence;
-				char ptypeDef = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_DEFFENCE;
-				RecordSTCPacket(bd, ptypeDef, &newDef, sizeof(int));
-
-				if (damageDealt < 0) {
-					hpLost = -damageDealt;
-					player.hp -= hpLost;
-					if (player.hp < 0) player.hp = 0;
-
-					int newHP = player.hp;
-					char ptypeHP = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_HP;
-					RecordSTCPacket(bd, ptypeHP, &newHP, sizeof(int));
-				}
-
-				defenseLost = initialDefense - player.defence;
-
-				return;
-			}
-		}
+		return; 
 	}
 
+	// 방어력 계산
+	int initialDefense = player.defence;
+	int damageResult = player.defence - damage;
 
+	if (damageResult >= 0) {
+		player.defence = damageResult;
+	}
+	else {
+		player.defence = 0;
+	}
+
+	int newDef = player.defence;
+	char ptypeDef = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_DEFFENCE;
+	RecordSTCPacket(bd, ptypeDef, &newDef, sizeof(int));
+
+
+	// HP 계산
+	if (damageResult < 0) {
+		int hpLost = -damageResult; 
+		player.hp -= hpLost;
+		if (player.hp < 0) player.hp = 0;
+
+		int newHP = player.hp;
+		char ptypeHP = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_HP;
+		RecordSTCPacket(bd, ptypeHP, &newHP, sizeof(int));
+	}
+
+	// 사망 체크
+	if (player.hp <= 0 && !player.playerdeath) {
+		player.playerdeath = true;
+
+		char ptypeDeath = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_PLAYER_DEATH;
+		RecordSTCPacket(bd, ptypeDeath, &player.playerdeath, sizeof(bool));
+	}
 }
 
 void GameLogic::ApplyDamageToBoss(GameState& state, int playerID, int rawDamage, BattleData& bd)
@@ -1618,6 +1640,66 @@ void GameLogic::HealBoss(GameState& state, int healAmount, BattleData& bd)
 	// 보스 힐 이펙트 이벤트
 	int newBossHP = state.boss.hp;
 	RecordSTCPacket(bd, STC_Sync_Boss_Hp, &newBossHP, sizeof(int));
+}
+
+void GameLogic::SpawnRandomItem(GameState& state, BattleData& bd)
+{
+	int tryCount = 0;
+
+	while (tryCount < 10) {
+		int rx = rand() % GameState::GRID_SIZE;
+		int ry = rand() % GameState::GRID_SIZE;
+
+		if (state.mapData[ry][rx].item == ITEM_NONE) {
+
+			MapItemType itemType = (rand() % 2 == 0) ? ITEM_HP : ITEM_MANA;
+			state.mapData[ry][rx].item = itemType;
+
+			RecordSTCPacket(bd, STC_Sync_MapData, state.mapData, sizeof(state.mapData));
+			break;
+		}
+		tryCount++;
+	}
+}
+
+void GameLogic::CheckItemPickup(GameState& state, int playerindex, BattleData& bd)
+{
+	PlayerData& p = state.players[playerindex];
+
+	if (p.playerdeath)
+		return;
+
+	int px = p.pos.x + 2;
+	int py = 2 - p.pos.y;
+
+	if (px < 0 || px >= GameState::GRID_SIZE || py < 0 || py >= GameState::GRID_SIZE)
+		return;
+
+	int currentItem = state.mapData[py][px].item;
+
+	if (currentItem == ITEM_HP) {
+		p.hp += 15;
+		if (p.hp > 100) p.hp = 100;
+
+		char ptype = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_HP;
+		RecordSTCPacket(bd, ptype, &p.hp, sizeof(int));
+
+		state.mapData[py][px].item = ITEM_NONE;
+
+		RecordSTCPacket(bd, STC_Sync_MapData, state.mapData, sizeof(state.mapData));
+
+	}
+	else if (currentItem == ITEM_MANA) {
+		p.mana += 1.0f;
+		if (p.mana > p.maxMana) p.mana = p.maxMana;
+
+		char ptype = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_MANA;
+		RecordSTCPacket(bd, ptype, &p.mana, sizeof(float));
+
+		state.mapData[py][px].item = ITEM_NONE;
+
+		RecordSTCPacket(bd, STC_Sync_MapData, state.mapData, sizeof(state.mapData));
+	}
 }
 
 void GameLogic::RecordSTCPacket(BattleData& bd, char ptype, void* data, int dataSize)

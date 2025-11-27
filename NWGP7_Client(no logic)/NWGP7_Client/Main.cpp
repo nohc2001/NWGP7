@@ -128,7 +128,6 @@ struct InputData {
 };
 InputData inputdata;
 
-char MapData[5][5] = {};
 constexpr float MapMoveMargin = 100;
 constexpr float MapCenterX = 225;
 constexpr float MapCenterY = 250;
@@ -326,6 +325,23 @@ public:
 	void InitializeBattleVisuals(int bossID);
 };
 
+enum MapPatternType {
+	PATTERN_NONE = 0,
+	PATTERN_ATTACK = 2,     // 보스 공격
+	PATTERN_WARNING = 3,    // 공격 예고
+};
+
+enum MapItemType {
+	ITEM_NONE = 0,
+	ITEM_HP = 4,            // HP 아이템
+	ITEM_MANA = 5           // 마나 아이템
+};
+
+struct MapTile {
+	int pattern;
+	int item;
+};
+
 struct GameState {
 public:
 	// 게임 화면 상태
@@ -347,7 +363,7 @@ public:
 	
 	// 격자 맵 데이터 및 보스 공격 표시
 	static const int GRID_SIZE = 5;       // 고정된 5x5 격자
-	int mapData[GRID_SIZE][GRID_SIZE] = { 0 };  // 0=빈칸, 1=이동가능, 2=보스공격
+	MapTile mapData[GRID_SIZE][GRID_SIZE] = { 0 };  // 0=빈칸, 1=이동가능, 2=보스공격
 
 };
 
@@ -2354,30 +2370,63 @@ void Renderer::DrawPVEScreen(HDC hdc, HDC imgDC, const GameState& state, const P
 	SelectObject(imgDC, hOldImg);
 
 	// Map
-	HBRUSH hBlueBrush = CreateSolidBrush(RGB(0, 0, 255));
-	HBRUSH hOldBrush = (HBRUSH)SelectObject(hdc, hBlueBrush);
+	HBRUSH hBrushWarn = CreateSolidBrush(RGB(255, 212, 0));     // 경고
+	HBRUSH hBrushHP = CreateSolidBrush(RGB(0, 200, 50));        // HP
+	HBRUSH hBrushMana = CreateSolidBrush(RGB(0, 200, 200));     //Mana
+
+
 	constexpr float rateW = 0.4f;
 	constexpr float rateH = 0.4f;
 	float offsetX = PlayerW * rateW;
 	float offsetY = PlayerH * rateH;
-	// 데미지 영역 미리 알려주고
-	for (int y = 0; y < 5; ++y) {
-		for (int x = 0; x < 5; ++x) {
-			if (state.mapData[y][x] == 3) {
-				float left = MapCenterX + (x - (5.0f / 2.0f)) * MapMoveMargin + offsetX;
-				float top = MapCenterY + (y - (5.0f / 2.0f)) * MapMoveMargin + offsetY;
-				float right = left + MapMoveMargin;
-				float bottom = top + MapMoveMargin;
-				RECT cellRect;
-				SetRect(&cellRect, (int)left, (int)top, (int)right, (int)bottom);
-				FillRect(hdc, &cellRect, hBlueBrush);
+
+	for (int y = 0; y < GameState::GRID_SIZE; ++y) {
+		for (int x = 0; x < GameState::GRID_SIZE; ++x) {
+
+			const auto& tile = state.mapData[y][x];
+
+			if (tile.pattern == 0 && tile.item == 0) continue;
+
+			float left = MapCenterX + (x - (5.0f / 2.0f)) * MapMoveMargin + offsetX;
+			float top = MapCenterY + (y - (5.0f / 2.0f)) * MapMoveMargin + offsetY;
+			float right = left + MapMoveMargin;
+			float bottom = top + MapMoveMargin;
+			RECT cellRect;
+			SetRect(&cellRect, (int)left, (int)top, (int)right, (int)bottom);
+
+			if (tile.pattern == PATTERN_WARNING) { // PATTERN_WARNING
+				FillRect(hdc, &cellRect, hBrushWarn);
+			}
+
+			if (tile.item == ITEM_HP) { // ITEM_HP
+				RECT itemRect = cellRect;
+				InflateRect(&itemRect, -20, -20);
+				FillRect(hdc, &itemRect, hBrushHP);
+
+				SetBkMode(hdc, TRANSPARENT);
+				SetTextColor(hdc, RGB(255, 255, 255));
+				TextOut(hdc, itemRect.left + 5, itemRect.top + 5, L"HP", 2);
+			}
+			else if (tile.item == ITEM_MANA) { // ITEM_MANA
+				RECT itemRect = cellRect;
+				InflateRect(&itemRect, -20, -20);
+				FillRect(hdc, &itemRect, hBrushMana);
+
+				SetBkMode(hdc, TRANSPARENT);
+				SetTextColor(hdc, RGB(0, 0, 0));
+				TextOut(hdc, itemRect.left + 5, itemRect.top + 5, L"행동력", 3);
 			}
 		}
 	}
-	SelectObject(hdc, hOldBrush);
-	DeleteObject(hBlueBrush);
+
+	DeleteObject(hBrushWarn);
+	DeleteObject(hBrushHP);
+	DeleteObject(hBrushMana);
+
 	// 5x5 맵
-	SelectObject(hdc, hRedPen);
+	HPEN hRedPen = CreatePen(PS_SOLID, 2, RGB(255, 0, 0));
+	HPEN hOldPen = (HPEN)SelectObject(hdc, hRedPen);
+
 	for (int i = 0; i <= 5; ++i) {
 		float lineOffset = (i - (5.0f / 2.0f)) * MapMoveMargin;
 		MoveToEx(hdc, MapCenterX + lineOffset + offsetX, MapCenterY - (5.0f / 2.0f) * MapMoveMargin + offsetY, NULL);
@@ -2385,6 +2434,9 @@ void Renderer::DrawPVEScreen(HDC hdc, HDC imgDC, const GameState& state, const P
 		MoveToEx(hdc, MapCenterX - (5.0f / 2.0f) * MapMoveMargin + offsetX, MapCenterY + lineOffset + offsetY, NULL);
 		LineTo(hdc, MapCenterX + (5.0f / 2.0f) * MapMoveMargin + offsetX, MapCenterY + lineOffset + offsetY);
 	}
+
+	SelectObject(hdc, hOldPen);
+	DeleteObject(hRedPen);
 
 	pState.RenderThrowingCards(hdc);
 
@@ -2736,19 +2788,18 @@ void Renderer::DrawEffects(HDC hdc, HDC imgDC, const GameState& state, const Pre
 			TransparentBlt(hdc, p.x + 20, p.y - 50, 300, 300, imgDC, 0, 0, assets.holiShildWidth, assets.holiShildHeight, RGB(255, 255, 255));
 		}
 		// 피격 이펙트
-		for (int i = 0; i < GameState::GRID_SIZE; i++) {
-			for (int j = 0; j < GameState::GRID_SIZE; j++) {
-				if (p.effect_anim_data.hurt && state.mapData[i][j] == 2)
+		for (int y = 0; y < GameState::GRID_SIZE; y++) {
+			for (int x = 0; x < GameState::GRID_SIZE; x++) {
+				if (p.effect_anim_data.hurt && state.mapData[y][x].pattern == PATTERN_ATTACK)
 				{
 					constexpr float rateW = 0.4f;
 					constexpr float rateH = 0.8f;
 					constexpr float originOffsetX = MapCenterX - 2 * MapMoveMargin + PlayerW * rateW;
-					constexpr float originOffsetY = MapCenterX - 2 * MapMoveMargin + PlayerH * rateH;
+					constexpr float originOffsetY = MapCenterY - 2 * MapMoveMargin + PlayerH * rateH;
 
-					int tileCenterX = originOffsetX + j * MapMoveMargin;
-					int tileCenterY = originOffsetY + i * MapMoveMargin;
+					int tileCenterX = originOffsetX + x * MapMoveMargin;
+					int tileCenterY = originOffsetY + y * MapMoveMargin;
 
-					// 피격 이펙트 (보스 공격 위치에 그리기)
 					hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBithurt[p.effect_anim_data.hurtcount]);
 					TransparentBlt(hdc, tileCenterX - 150, tileCenterY - 150, 300, 300, imgDC, 0, 0, assets.hurtWidth, assets.hurtHeight, RGB(255, 255, 255));
 				}
