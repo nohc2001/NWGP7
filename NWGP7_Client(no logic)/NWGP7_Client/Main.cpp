@@ -779,7 +779,7 @@ public:
 	void HandleMouseMove(const GameState& state, PresentationState& pState, int x, int y, HWND hWnd);
 	void HandleLButtonDown(const GameState& state, PresentationState& pState, int x, int y, HWND hWnd);
 	void HandleLButtonUp(const GameState& state, PresentationState& pState, int x, int y, HWND hWnd);
-	void OnServerEvent(PresentationState& pState /*eventPacket*/);
+	void OnServerEvent(PresentationState& pState, int EffectType /*eventPacket*/);
 	void PlayCard(int cardindex, int enemyID, short gridX, short gridY);
 };
 
@@ -1099,6 +1099,14 @@ unsigned __stdcall Recv_Thread(void* arg)
 				g_Game.UpdateStateFromServer(initialState); 
 				break;
 			}
+			case STC_PT_Effect_Event: // 97¹ø
+			{
+				int effectType;
+				recv(sock, (char*)&effectType, sizeof(int), MSG_WAITALL);
+				g_Game.m_CLogic.OnServerEvent(g_Game.m_PState, effectType);
+				break;
+			}
+
 			case STC_Sync_MapData: // 116¹ø
 				recv(sock, (char*)g_Game.m_State.mapData, sizeof(g_Game.m_State.mapData), MSG_WAITALL);
 				break;
@@ -1599,8 +1607,24 @@ void ClientLogic::HandleLButtonUp(const GameState& state, PresentationState& pSt
 	}
 }
 
-void ClientLogic::OnServerEvent(PresentationState& pState)
+void ClientLogic::OnServerEvent(PresentationState& pState, int EffectType)
 {
+	switch (EffectType)
+	{
+	case 0:
+		pState.boomswitch = true;
+		break;
+	case 1:
+		pState.sword = true;
+		break;
+	case 2:
+		pState.quake = true;
+		break;
+	case 3:
+		pState.boss.attackTime++;
+		break;
+	}
+
 	/*
 	if (event.type == "CardUsed") {
             

@@ -889,7 +889,9 @@ void GameLogic::CheckWinLossConditionsPvE(GameState& state, BattleData& bd)
 		if (state.boss.bossAwakening) {
 			//state.boomswitch = true; // 폭발 모션 재생
 			state.boss.death = true;
+			int EffectType = 0;
 			RecordSTCPacket(bd, STC_Sync_Boss_Death, &state.boss.death, sizeof(bool));
+			RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
 		}
 		else {
 			//state.boss.heal = true; // 체력회복 모션 재생
@@ -936,6 +938,7 @@ void GameLogic::AttackWarning(GameState& state, BattleData& bd)
 
 void GameLogic::AttackOnRandomGreed(GameState& state, int damage, BattleData& bd)
 {
+	//int EffectType = 3;
 	for (int i = 0; i < GameState::GRID_SIZE; ++i) {
 		for (int j = 0; j < GameState::GRID_SIZE; ++j) {
 			if (state.mapData[i][j].pattern == PATTERN_WARNING) {
@@ -946,6 +949,7 @@ void GameLogic::AttackOnRandomGreed(GameState& state, int damage, BattleData& bd
 
 	char ptype = STC_Sync_MapData;
 	RecordSTCPacket(bd, ptype, state.mapData, sizeof(state.mapData));
+	//RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
 
 	for (int i = 0; i < GameState::playerCount; ++i) {
 		PlayerData& p = state.players[i];
@@ -1286,6 +1290,8 @@ void GameLogic::PlayCard(GameState& state, int cardIndex, BattleData& bd, int pl
 		// 마나 다운 애니메이션 이벤트
 		
 		// 카드 사용 애니매이션 이벤트
+		int EffectType = 1;
+		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
 	}
 }
 
