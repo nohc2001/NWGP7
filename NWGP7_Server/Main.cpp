@@ -65,6 +65,9 @@ enum ServerToClient_ProtocolType {
 	
 	// MapData
 	STC_Sync_MapData = 116,
+
+	// Fever Time
+	STC_Sync_Fever = 120,
 };
 
 struct STC_OP {
@@ -296,6 +299,13 @@ enum MapItemType {
 	ITEM_MANA = 5           // 마나 아이템
 };
 
+enum FeverType {
+	FEVER_NONE = 0,       
+	FEVER_MANA_BURST = 1, // 마나 폭주 (행동력 회복 속도 3배)
+	FEVER_HEAL_ALL = 2,   // 구원 (전체 체력 회복)
+	FEVER_ATTACK_UP = 3,  // 광폭화 (전체 공격력 +30)
+};
+
 struct MapTile {
 	int pattern; 
 	int item;
@@ -324,6 +334,7 @@ public:
 	static const int GRID_SIZE = 5;       // 고정된 5x5 격자
 	MapTile mapData[GRID_SIZE][GRID_SIZE] = { 0 };  // 0=빈칸, 1=이동가능, 2=보스공격
 
+	int currentFeverType = FEVER_NONE;
 };
 
 struct BattleData;
@@ -394,6 +405,9 @@ struct BattleData {
 	mutex STCQueueMutex;
 
 	float itemSpawnTimer = 0.0f; // 아이템 생성 타이머
+
+	float ferverDurationTimer = 0.0f; // 피버타임 지속시간
+	float nextEventTimer = 0.0f;
 };
 
 struct ClientData {
@@ -1100,6 +1114,68 @@ void GameLogic::UpdateBattle_RealTime(GameState& state, float deltaTime, BattleD
 {
 	//CardUpdate(state, deltaTime);
 
+	// ferver time
+	if (state.currentFeverType != FEVER_NONE) {
+		bd.ferverDurationTimer -= deltaTime;
+
+		if (bd.ferverDurationTimer <= 0.0f) {
+			state.currentFeverType = FEVER_NONE;
+			bd.ferverDurationTimer = 0.0f;
+
+			RecordSTCPacket(bd, STC_Sync_Fever, &state.currentFeverType, sizeof(int));
+		}
+	}
+	else {
+		constexpr float EVENT_COOLDOWN = 10.0f;
+		bd.nextEventTimer += deltaTime;
+
+		if (bd.nextEventTimer >= EVENT_COOLDOWN) {
+			bd.nextEventTimer = 0.0f;
+
+			if (rand() % 2 == 0) {
+
+				int type = (rand() % 3) + 1;
+
+				state.currentFeverType = type;
+
+				RecordSTCPacket(bd, STC_Sync_Fever, &state.currentFeverType, sizeof(int));
+
+				switch (type) {
+				case FEVER_MANA_BURST: // 행동력 회복 3배
+					bd.ferverDurationTimer = 10.0f;
+					break;
+
+				case FEVER_HEAL_ALL: // 전체 회복
+					bd.ferverDurationTimer = 3.0f;
+					for (int i = 0; i < GameState::playerCount; ++i) {
+						if (!state.players[i].playerdeath) {
+							state.players[i].hp = 100; 
+
+							char ptype = (i * PLAYER_SYNC_STRIDE) + SYNC_HP;
+							RecordSTCPacket(bd, ptype, &state.players[i].hp, sizeof(int));
+						}
+					}
+					break;
+
+				case FEVER_ATTACK_UP: // 공격력 증가
+					bd.ferverDurationTimer = 3.0f;
+					for (int i = 0; i < GameState::playerCount; ++i) {
+						if (!state.players[i].playerdeath) {
+							state.players[i].attack += 30;
+
+							char ptype = (i * PLAYER_SYNC_STRIDE) + SYNC_ATTACK;
+							RecordSTCPacket(bd, ptype, &state.players[i].attack, sizeof(int));
+						}
+					}
+					break;
+				}
+			}
+			else {
+				// No Event
+			}
+		}
+	}
+
 	// item spawn
 	constexpr float ITEM_SPAWN_INTERVAL = 10.0f;
 
@@ -1118,7 +1194,12 @@ void GameLogic::UpdateBattle_RealTime(GameState& state, float deltaTime, BattleD
 		if (p.playerdeath) continue;
 
 		//mana regen
-		constexpr float manaRegenSpeed = 0.5f;
+		float manaRegenSpeed = 0.5f;
+
+		if (state.currentFeverType == FEVER_MANA_BURST) {
+			manaRegenSpeed *= 3.0f;
+		}
+
 		float prevMana = p.mana;
 
 		if (p.mana < p.maxMana) {

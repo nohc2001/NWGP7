@@ -342,6 +342,13 @@ struct MapTile {
 	int item;
 };
 
+enum FeverType {
+	FEVER_NONE = 0,
+	FEVER_MANA_BURST = 1, // 마나 폭주 (행동력 회복 속도 3배)
+	FEVER_HEAL_ALL = 2,   // 구원 (전체 체력 회복)
+	FEVER_ATTACK_UP = 3,  // 광폭화 (전체 공격력 +30)
+};
+
 struct GameState {
 public:
 	// 게임 화면 상태
@@ -365,6 +372,7 @@ public:
 	static const int GRID_SIZE = 5;       // 고정된 5x5 격자
 	MapTile mapData[GRID_SIZE][GRID_SIZE] = { 0 };  // 0=빈칸, 1=이동가능, 2=보스공격
 
+	int currentFeverType = FEVER_NONE;
 };
 
 template<size_t N>
@@ -876,6 +884,9 @@ enum ServerToClient_ProtocolType {
 
 	// MapData
 	STC_Sync_MapData = 116,
+
+	// Fever Time
+	STC_Sync_Fever = 120,
 };
 
 struct STC_OP {
@@ -1110,7 +1121,19 @@ unsigned __stdcall Recv_Thread(void* arg)
 			case STC_Sync_MapData: // 116번
 				recv(sock, (char*)g_Game.m_State.mapData, sizeof(g_Game.m_State.mapData), MSG_WAITALL);
 				break;
+
+			case STC_Sync_Fever: // 120번
+			{
+				int feverType;
+				recv(sock, (char*)&feverType, sizeof(int), MSG_WAITALL);
+
+				WaitForSingleObject(g_hMutexGameState, INFINITE);
+				g_Game.m_State.currentFeverType = feverType;
+				ReleaseMutex(g_hMutexGameState);
+				break;
 			}
+			}
+
 		}
 
 		ReleaseMutex(g_hMutexGameState);
@@ -2656,6 +2679,34 @@ void Renderer::DrawHUD(HDC hdc, const GameState& state, const PresentationState&
 				}
 			}
 		}
+	}
+
+	if (state.currentFeverType != FEVER_NONE)
+	{
+		HFONT hFont = CreateFont(60, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Impact");
+		HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
+		SetBkMode(hdc, TRANSPARENT);
+
+		int centerX = 600;
+		int topY = 100;
+
+		switch (state.currentFeverType) {
+		case FEVER_MANA_BURST:
+			SetTextColor(hdc, RGB(0, 200, 255));
+			TextOut(hdc, centerX - 150, topY, L"MANA BURST!! (x3)", 17);
+			break;
+		case FEVER_HEAL_ALL:
+			SetTextColor(hdc, RGB(50, 255, 50));
+			TextOut(hdc, centerX - 120, topY, L"HEAL ALL!!", 10);
+			break;
+		case FEVER_ATTACK_UP:
+			SetTextColor(hdc, RGB(255, 50, 50));
+			TextOut(hdc, centerX - 140, topY, L"ATTACK UP!!", 11);
+			break;
+		}
+
+		SelectObject(hdc, hOldFont);
+		DeleteObject(hFont);
 	}
 }
 
