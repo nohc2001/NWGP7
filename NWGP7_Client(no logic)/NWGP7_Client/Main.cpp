@@ -55,6 +55,14 @@ LPCTSTR lpszWindowName = L"windows program";
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM lParam);
 
+enum EffectType {
+	Effect_Draw = 0,
+	Effect_Sword = 1,
+	Effect_Boom = 2,
+	Effect_Quake = 3,
+	Effect_Boss_attack = 4,
+};
+
 struct CardData {
 	int id = 0;
 };
@@ -99,6 +107,7 @@ struct BossPresentation {
 	int defUpTime = 0;
 	int defDownTime = 0;
 
+	bool attack = false;
 	bool defUp = false;
 	bool defDown = false;
 	bool heal = false;
@@ -292,7 +301,7 @@ public:
 	
 	bool boomswitch = false, Sniper = false, One = false, sword = false;
 	bool quake = false;
-	bool droww = true; // 카드 뽑기
+	bool droww = false; // 카드 뽑기
 	bool trunendd = false; // 턴 종료
 	bool dehp = false; // 적 피격
 	bool startstart = false, endend = false, pdeath = false; // 자막
@@ -1634,18 +1643,22 @@ void ClientLogic::OnServerEvent(PresentationState& pState, int EffectType)
 {
 	switch (EffectType)
 	{
-	case 0:
+	case Effect_Boom:
 		pState.boomswitch = true;
 		break;
-	case 1:
+	case Effect_Sword:
 		pState.sword = true;
 		break;
-	case 2:
+	case Effect_Quake:
 		pState.quake = true;
 		break;
-	case 3:
-		pState.boss.attackTime++;
+	case Effect_Boss_attack:
+		// 여기서는 “보스 공격 이펙트 시작” 신호만 준다
+		pState.boss.attack = true;   // 새로 추가할 플래그
+		pState.boss.attackTime = 0;      // 애니메이션 시작 프레임
 		break;
+	case Effect_Draw:
+		pState.droww = true;
 	}
 
 	/*
@@ -1983,6 +1996,7 @@ void PresentationState::UpdateBuffsAndTimers(float deltaTime, const GameState& g
 			state.boss.animCount = 0;
 		}
 	}*/
+
 	// 폭발 애니메이션
 	if (boomswitch) {
 		boomcount++;
@@ -2110,19 +2124,21 @@ void PresentationState::UpdateBuffsAndTimers(float deltaTime, const GameState& g
 	}
 
 	// boss 공격 모션
-	if (boss.attackTime > 0) {
+	if (boss.attack) {
 		boss.attackTime++;
 
 		if (boss.attackTime == 2) {
-			boss.x -= 100; // 
+			boss.x -= 100;
 		}
 		else if (boss.attackTime == 3) {
-			boss.x += 100; // 
+			boss.x += 100;
 		}
-		else if (boss.attackTime >= 22) {
-			boss.attackTime = 0; // 
+		else if (boss.attackTime >= 6) {
+			boss.attack = false;     // 여기서 플래그도 같이 꺼줌
+			boss.attackTime = 0;
 		}
 	}
+
 }
 
 void PresentationState::InitializeBattleVisuals(int bossID)
@@ -2863,9 +2879,10 @@ void Renderer::DrawEffects(HDC hdc, HDC imgDC, const GameState& state, const Pre
 			TransparentBlt(hdc, p.x + 20, p.y - 50, 300, 300, imgDC, 0, 0, assets.holiShildWidth, assets.holiShildHeight, RGB(255, 255, 255));
 		}
 		// 피격 이펙트
+		
 		for (int y = 0; y < GameState::GRID_SIZE; y++) {
 			for (int x = 0; x < GameState::GRID_SIZE; x++) {
-				if (p.effect_anim_data.hurt && state.mapData[y][x].pattern == PATTERN_ATTACK)
+				if (pState.boss.attack && state.mapData[y][x].pattern == PATTERN_ATTACK)
 				{
 					constexpr float rateW = 0.4f;
 					constexpr float rateH = 0.8f;
@@ -2875,11 +2892,12 @@ void Renderer::DrawEffects(HDC hdc, HDC imgDC, const GameState& state, const Pre
 					int tileCenterX = originOffsetX + x * MapMoveMargin;
 					int tileCenterY = originOffsetY + y * MapMoveMargin;
 
-					hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBithurt[p.effect_anim_data.hurtcount]);
+					hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBithurt[pState.boss.attackTime]);
 					TransparentBlt(hdc, tileCenterX - 150, tileCenterY - 150, 300, 300, imgDC, 0, 0, assets.hurtWidth, assets.hurtHeight, RGB(255, 255, 255));
 				}
 			}
 		}
+		
 	}
 
 	if (hOldImg) {

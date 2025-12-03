@@ -14,6 +14,14 @@ using namespace std;
 #define SERVERPORT 9000
 #define BUFSIZE    512
 
+enum EffectType {
+	Effect_Draw = 0,
+	Effect_Sword = 1,
+	Effect_Boom = 2,
+	Effect_Quake = 3,
+	Effect_Boss_attack = 4,
+};
+
 enum ClientToServer_ProtocolType {
 	CTS_PT_KeyInput = 0,
 	CTS_PT_PlayCard = 1,
@@ -573,12 +581,16 @@ void TimeBasedUpdate(BattleData& bd, float deltaTime) {
 
 DWORD WINAPI ProcessBattle(LPVOID arg) {
 	BattleData& bd = *(BattleData*)arg;
-
 	bd.gameLogic.Initialize(bd.gameState);
 	bd.gameLogic.StartBattle(bd.gameState);
 	bd.itemSpawnTimer = 0.0f;
 
 	int ptype = STC_PT_InitGame; // 게임 초기값 프로토콜
+	
+	//드로우
+	int EffectType = Effect_Draw;
+	bd.gameLogic.RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+	//
 
 	for (int i = 0; i < GameState::playerCount; ++i) {
 		int clientId = bd.clientsID[i];
@@ -621,6 +633,8 @@ DWORD WINAPI ProcessBattle(LPVOID arg) {
 		
 		Sleep(17);//
 	}
+
+	
 }
 
 DWORD WINAPI ProcessMatching(LPVOID arg) {
@@ -803,6 +817,8 @@ void GameLogic::Initialize(GameState& state)
 
 void GameLogic::StartBattle(GameState& state)
 {
+	int EffectType = Effect_Draw;
+	
 	//$Chang Player Init
 	for (int i = 0; i < GameState::playerCount; ++i) {
 		PlayerData& p = state.players[i];
@@ -903,7 +919,7 @@ void GameLogic::CheckWinLossConditionsPvE(GameState& state, BattleData& bd)
 		if (state.boss.bossAwakening) {
 			//state.boomswitch = true; // 폭발 모션 재생
 			state.boss.death = true;
-			int EffectType = 0;
+			int EffectType = Effect_Boom;
 			RecordSTCPacket(bd, STC_Sync_Boss_Death, &state.boss.death, sizeof(bool));
 			RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
 		}
@@ -952,7 +968,6 @@ void GameLogic::AttackWarning(GameState& state, BattleData& bd)
 
 void GameLogic::AttackOnRandomGreed(GameState& state, int damage, BattleData& bd)
 {
-	//int EffectType = 3;
 	for (int i = 0; i < GameState::GRID_SIZE; ++i) {
 		for (int j = 0; j < GameState::GRID_SIZE; ++j) {
 			if (state.mapData[i][j].pattern == PATTERN_WARNING) {
@@ -963,7 +978,11 @@ void GameLogic::AttackOnRandomGreed(GameState& state, int damage, BattleData& bd
 
 	char ptype = STC_Sync_MapData;
 	RecordSTCPacket(bd, ptype, state.mapData, sizeof(state.mapData));
-	//RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+	
+	///effect
+	int EffectType = Effect_Boss_attack;
+	RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+	///
 
 	for (int i = 0; i < GameState::playerCount; ++i) {
 		PlayerData& p = state.players[i];
@@ -1371,8 +1390,11 @@ void GameLogic::PlayCard(GameState& state, int cardIndex, BattleData& bd, int pl
 		// 마나 다운 애니메이션 이벤트
 		
 		// 카드 사용 애니매이션 이벤트
-		int EffectType = 1;
+		int EffectType = Effect_Sword;
 		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+
+		int EffectType2 = Effect_Quake;
+		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType2, sizeof(int));
 	}
 }
 
