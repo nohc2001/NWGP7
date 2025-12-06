@@ -1152,7 +1152,7 @@ unsigned __stdcall Recv_Thread(void* arg)
 	return 0;
 }
 
-char* SERVERIP = (char*)"127.0.0.1";
+char* SERVERIP = (char*)"192.168.70.187";
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdParam, int nCmdShow)
 {
@@ -1576,18 +1576,18 @@ void ClientLogic::HandleLButtonDown(const GameState& state, PresentationState& p
 				}
 				else pState.hand[i].drag = false;
 			}
-			if (x >= 10 && x <= 70 && y >= 10 && y <= 70) { // 시작화면
-				pState.StartScreen = true;
-			}
+			//if (x >= 10 && x <= 70 && y >= 10 && y <= 70) { // 시작화면
+			//	pState.StartScreen = true;
+			//}
 		}
 		else { // pvp
-			if (x >= 175 && x <= 225 && y >= 15 && y <= 65) { //일시정지
-				/*state.tempstop = !state.tempstop;
-				if (state.tempstop) KillTimer(hWnd, 1);
-				else SetTimer(hWnd, 1, 100, NULL);*/
-			}
-			if (x >= 1050 && x <= 1120 && y >= 600 && y <= 655)
-				//state.player->mana = 0; // 턴 종료
+			//if (x >= 175 && x <= 225 && y >= 15 && y <= 65) { //일시정지
+			//	/*state.tempstop = !state.tempstop;
+			//	if (state.tempstop) KillTimer(hWnd, 1);
+			//	else SetTimer(hWnd, 1, 100, NULL);*/
+			//}
+			//if (x >= 1050 && x <= 1120 && y >= 600 && y <= 655)
+			//	//state.player->mana = 0; // 턴 종료
 
 			for (int i = 0; i < 5; ++i) {
 				if (pState.hand[i].on && x >= pState.hand[i].x - 70 && x <= pState.hand[i].x + 70 && y >= pState.hand[i].y - 100 && y <= pState.hand[i].y + 100 && !(myPlayer.isCastingOnePunch)) {
@@ -1595,9 +1595,9 @@ void ClientLogic::HandleLButtonDown(const GameState& state, PresentationState& p
 				}/*
 				else pState.hand[i].drag = false;*/
 			}
-			if (x >= 10 && x <= 70 && y >= 10 && y <= 70) {
-				pState.StartScreen = true; // 시작 화면으로
-			}
+			//if (x >= 10 && x <= 70 && y >= 10 && y <= 70) {
+			//	pState.StartScreen = true; // 시작 화면으로
+			//}
 		}
 	}
 }
@@ -1621,7 +1621,7 @@ void ClientLogic::HandleLButtonUp(const GameState& state, PresentationState& pSt
 			}
 		}
 	}
-	else { // pvp
+	else { // pvp 
 		for (int i = 0; i < 5; ++i) {
 			if (pState.hand[i].drag) {
 				if (i == 0) { pState.hand[i].x = 300; pState.hand[i].y = 700; }
@@ -2370,16 +2370,16 @@ void Renderer::DrawPvPScreen(HDC hdc, HDC imgDC, const GameState& state, const P
 	SelectObject(imgDC, assets.hBitattack);
 	TransparentBlt(hdc, 630, 20, 50, 50, imgDC, 0, 0, assets.attackWidth, assets.attackHeight, RGB(255, 255, 255));
 
-	SelectObject(imgDC, assets.hBitReturn);
-	TransparentBlt(hdc, 10, 10, 70, 70, imgDC, 0, 0, assets.returnWidth, assets.returnHeight, RGB(255, 255, 255));
+	//SelectObject(imgDC, assets.hBitReturn);
+	//TransparentBlt(hdc, 10, 10, 70, 70, imgDC, 0, 0, assets.returnWidth, assets.returnHeight, RGB(255, 255, 255));
 
-	if (state.tempstop) SelectObject(imgDC, assets.hBitstop[1]);
-	else SelectObject(imgDC, assets.hBitstop[0]);
-	TransparentBlt(hdc, 160, 10, 70, 70, imgDC, 0, 0, assets.stopWidth, assets.stopHeight, RGB(255, 255, 255));
+	//if (state.tempstop) SelectObject(imgDC, assets.hBitstop[1]);
+	//else SelectObject(imgDC, assets.hBitstop[0]);
+	//TransparentBlt(hdc, 160, 10, 70, 70, imgDC, 0, 0, assets.stopWidth, assets.stopHeight, RGB(255, 255, 255));
 
-	if (pState.endon) SelectObject(imgDC, assets.endbutton[1]);
-	else SelectObject(imgDC, assets.endbutton[0]);
-	TransparentBlt(hdc, 1050, 600, 70, 55, imgDC, 0, 0, assets.endbuttonWidth, assets.endbuttonHeight, RGB(255, 255, 255));
+	//if (pState.endon) SelectObject(imgDC, assets.endbutton[1]);
+	//else SelectObject(imgDC, assets.endbutton[0]);
+	//TransparentBlt(hdc, 1050, 600, 70, 55, imgDC, 0, 0, assets.endbuttonWidth, assets.endbuttonHeight, RGB(255, 255, 255));
 
 	SelectObject(imgDC, hOldImg);
 
