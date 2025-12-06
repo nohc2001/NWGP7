@@ -78,7 +78,7 @@ struct CardUI {
 
 struct BossData {
 	int defence = 0;
-	int stage = 0;
+	//int stage = 0;
 	int hp = 100;
 	bool death = false;
 	bool bossAwakening = false;
@@ -128,6 +128,11 @@ struct Pos {
 	}
 };
 
+struct Posf {
+	float x;
+	float y;
+};
+
 struct InputData {
 	bool WPress;
 	bool APress;
@@ -149,7 +154,7 @@ struct PlayerData {
 	float mana = 3;
 	int defence = 0;
 	int attack = 0;
-	Pos pos;
+	Posf pos;
 	CardData hand[5];
 
 	// 상태 플래그
@@ -162,6 +167,11 @@ struct PlayerData {
 	bool ParingMoment = false;
 
 	void* clientData; // nullptr
+
+	bool Wpress = false;
+	bool Apress = false;
+	bool Spress = false;
+	bool Dpress = false;
 };
 
 struct PlayerPresentation {
@@ -203,7 +213,7 @@ struct PlayerPresentation {
 	int onepunchingcount = 0;
 	int onepunchingcounttime = 0;
 
-	void UpdataPosition(const Pos& serverPos) {
+	void UpdataPosition(const Posf& serverPos) {
 		/*pos.x += dx;
 		pos.y += dy;
 		if (pos.x < -2) {
@@ -902,8 +912,8 @@ struct STC_OP {
 	int ptype;
 
 	struct STC_OP_PlayerPos {
-		short posx;
-		short posy;
+		float posx;
+		float posy;
 	};
 
 	union {
@@ -917,6 +927,7 @@ struct OP {
 	struct OP_KEY {
 		char playerID;
 		char key;
+		bool isdown;
 	};
 	struct OP_PLAYCARD {
 		short playerID;
@@ -1046,7 +1057,7 @@ unsigned __stdcall Recv_Thread(void* arg)
 				break;
 			case SYNC_POS:
 			{
-				recv(sock, (char*)&recent_stcOP.op_playerpos, sizeof(short)*2, MSG_WAITALL);
+				recv(sock, (char*)&recent_stcOP.op_playerpos, sizeof(float)*2, MSG_WAITALL);
 				targetPlayer.pos.x = recent_stcOP.op_playerpos.posx;
 				targetPlayer.pos.y = recent_stcOP.op_playerpos.posy;
 				break;
@@ -1117,16 +1128,16 @@ unsigned __stdcall Recv_Thread(void* arg)
 
 				g_myPlayerIndex = clientIndex;
 				g_Game.UpdateStateFromServer(initialState); 
-				break;
 			}
+			break;
 			case STC_PT_Effect_Event: // 97번
 			{
 				int effectType;
 				recv(sock, (char*)&effectType, sizeof(int), MSG_WAITALL);
 				g_Game.m_CLogic.OnServerEvent(g_Game.m_PState, effectType);
-				break;
+				
 			}
-
+			break;
 			case STC_Sync_MapData: // 116번
 				recv(sock, (char*)g_Game.m_State.mapData, sizeof(g_Game.m_State.mapData), MSG_WAITALL);
 				break;
@@ -1141,6 +1152,20 @@ unsigned __stdcall Recv_Thread(void* arg)
 				ReleaseMutex(g_hMutexGameState);
 				break;
 			}
+			case STC_Sync_Boss_Defence:
+			{
+				recv(sock, (char*)&g_Game.m_State.boss.defence, sizeof(g_Game.m_State.boss.defence), MSG_WAITALL);
+			}
+				break;
+			case STC_Sync_Boss_Hp:
+				recv(sock, (char*)&g_Game.m_State.boss.hp, sizeof(g_Game.m_State.boss.hp), MSG_WAITALL);
+				break;
+			case STC_Sync_Boss_Death:
+				recv(sock, (char*)&g_Game.m_State.boss.death, sizeof(g_Game.m_State.boss.death), MSG_WAITALL);
+				break;
+			case STC_Sync_Boss_Awakening:
+				recv(sock, (char*)&g_Game.m_State.boss.bossAwakening, sizeof(g_Game.m_State.boss.bossAwakening), MSG_WAITALL);
+				break;
 			}
 
 		}
@@ -1152,11 +1177,10 @@ unsigned __stdcall Recv_Thread(void* arg)
 	return 0;
 }
 
-char* SERVERIP = (char*)"192.168.70.187";
+char* SERVERIP = (char*)"127.0.0.1";
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdParam, int nCmdShow)
 {
-
 	WSADATA wsa;
 	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
 		return 1;
@@ -1319,48 +1343,37 @@ void Game::OnLButtonUp(int x, int y)
 void Game::OnKeyDown(WPARAM wParam)
 {
 	constexpr float MoveMargin = 60;
+	OP op;
+	op.ptype = CTS_PT_KeyInput;
+	op.op_key.playerID = g_myPlayerIndex;
+	op.op_key.isdown = true;
 	if (wParam == 'W' && inputdata.WPress == false) {
 		//m_State.player->Move(0, 1);
 		inputdata.WPress = true;
-		OP op;
-		op.ptype = CTS_PT_KeyInput;
-		op.op_key.playerID = g_myPlayerIndex;
 		op.op_key.key = 'W';
 		send(sock, (char*) & op, sizeof(OP), 0);
 	}
 	else if (wParam == 'A' && inputdata.APress == false) {
 		//m_State.player->Move(-1, 0);
 		inputdata.APress = true;
-		OP op;
-		op.ptype = CTS_PT_KeyInput;
-		op.op_key.playerID = g_myPlayerIndex;
 		op.op_key.key = 'A';
 		send(sock, (char*)&op, sizeof(OP), 0);
 	}
 	else if (wParam == 'S' && inputdata.SPress == false) {
 		//m_State.player->Move(0, -1);
 		inputdata.SPress = true;
-		OP op;
-		op.ptype = CTS_PT_KeyInput;
-		op.op_key.playerID = g_myPlayerIndex;
 		op.op_key.key = 'S';
 		send(sock, (char*)&op, sizeof(OP), 0);
 	}
 	else if (wParam == 'D' && inputdata.DPress == false) {
 		//m_State.player->Move(1, 0);
 		inputdata.DPress = true;
-		OP op;
-		op.ptype = CTS_PT_KeyInput;
-		op.op_key.playerID = g_myPlayerIndex;
 		op.op_key.key = 'D';
 		send(sock, (char*)&op, sizeof(OP), 0);
 	}
 	else if (wParam == VK_SPACE && inputdata.SpacePress == false) {
 		inputdata.SpacePress = true;
 		//m_State.player->ParingMoment = true;
-		OP op;
-		op.ptype = CTS_PT_KeyInput;
-		op.op_key.playerID = g_myPlayerIndex;
 		op.op_key.key = VK_SPACE;
 		send(sock, (char*)&op, sizeof(OP), 0);
 	}
@@ -1368,20 +1381,34 @@ void Game::OnKeyDown(WPARAM wParam)
 
 void Game::OnKeyUp(WPARAM wParam)
 {
+	OP op;
+	op.ptype = CTS_PT_KeyInput;
+	op.op_key.playerID = g_myPlayerIndex;
+	op.op_key.isdown = false;
 	if (wParam == 'W') {
 		inputdata.WPress = false;
+		op.op_key.key = 'W';
+		send(sock, (char*)&op, sizeof(OP), 0);
 	}
 	else if (wParam == 'A') {
 		inputdata.APress = false;
+		op.op_key.key = 'A';
+		send(sock, (char*)&op, sizeof(OP), 0);
 	}
 	else if (wParam == 'S') {
 		inputdata.SPress = false;
+		op.op_key.key = 'S';
+		send(sock, (char*)&op, sizeof(OP), 0);
 	}
 	else if (wParam == 'D') {
 		inputdata.DPress = false;
+		op.op_key.key = 'D';
+		send(sock, (char*)&op, sizeof(OP), 0);
 	}
 	else if (wParam == VK_SPACE) {
 		inputdata.SpacePress = false;
+		op.op_key.key = VK_SPACE;
+		send(sock, (char*)&op, sizeof(OP), 0);
 	}
 }
 

@@ -82,8 +82,8 @@ struct STC_OP {
 	int ptype;
 
 	struct STC_OP_PlayerPos {
-		short posx;
-		short posy;
+		float posx;
+		float posy;
 	};
 
 	union {
@@ -101,6 +101,7 @@ struct OP {
 	struct OP_KEY {
 		char playerID;
 		char key;
+		bool isdown;
 	};
 	struct OP_PLAYCARD {
 		short playerID;
@@ -253,6 +254,11 @@ struct Pos {
 	}
 };
 
+struct Posf {
+	float x;
+	float y;
+};
+
 struct BossData {
 	int defence = 0;
 	int hp = 100;
@@ -279,7 +285,8 @@ struct PlayerData {
 	float mana = 3;
 	int defence = 0;
 	int attack = 0;
-	Pos pos;
+	//Pos pos;
+	Posf pos;
 	CardData hand[5];
 
 	// 상태 플래그
@@ -292,7 +299,12 @@ struct PlayerData {
 	bool ParingMoment = false;
 	void* clientData;
 
-	void Move(int dx, int dy);
+	bool Wpress = false;
+	bool Apress = false;
+	bool Spress = false;
+	bool Dpress = false;
+
+	void Move(float dx, float dy);
 };
 
 enum MapPatternType {
@@ -431,7 +443,7 @@ BattleData battles[128] = {};
 int battle_id_up = 0;
 thread_local ClientData* clientData;
 
-void PlayerData::Move(int dx, int dy) {
+void PlayerData::Move(float dx, float dy) {
 	ClientData* client = (ClientData*)clientData;
 	pos.x += dx;
 	pos.y += dy;
@@ -447,15 +459,6 @@ void PlayerData::Move(int dx, int dy) {
 	}
 	else if (pos.y > 2) {
 		pos.y = 2;
-	}
-
-	STC_OP op;
-	op.SetPtype_SyncBattleOP(client->ParticipateID, PlayerSyncBase::SYNC_POS);
-	op.op_playerpos.posx = pos.x;
-	op.op_playerpos.posy = pos.y;
-	//Send To All Clients
-	for (int i = 0; i < 3; ++i) {
-		int retval = send(clients[client->bd->clientsID[i]].param.sock, (char*)&op, sizeof(STC_OP), 0);
 	}
 }
 
@@ -544,21 +547,26 @@ void ExecuteOP(BattleData& bd) {
 		switch (op.ptype) {
 		case CTS_PT_KeyInput:
 		{
-			printf("player %d key down : %c \n", op.op_key.playerID, op.op_key.key);
+			printf("player %d key %c %d \n", op.op_key.playerID, op.op_key.key, op.op_key.isdown);
 			int partID = op.op_key.playerID;
 			char key = op.op_key.key;
+			bool isdown = op.op_key.isdown;
 
 			if (key == 'W') {
-				bd.gameState.players[partID].Move(0, 1);
+				bd.gameState.players[partID].Wpress = isdown;
+				//bd.gameState.players[partID].Move(0, speed);
 			}
 			else if (key == 'A') {
-				bd.gameState.players[partID].Move(-1, 0);
+				bd.gameState.players[partID].Apress = isdown;
+				//bd.gameState.players[partID].Move(-speed, 0);
 			}
 			else if (key == 'S') {
-				bd.gameState.players[partID].Move(0, -1);
+				bd.gameState.players[partID].Spress = isdown;
+				//bd.gameState.players[partID].Move(0, -speed);
 			}
 			else if (key == 'D') {
-				bd.gameState.players[partID].Move(1, 0);
+				bd.gameState.players[partID].Dpress = isdown;
+				//bd.gameState.players[partID].Move(speed, 0);
 			}
 			break;
 		}
@@ -803,7 +811,7 @@ void GameLogic::Initialize(GameState& state)
 		state.players[i].pos.x = 0;
 		state.players[i].pos.y = 0;
 		state.players[i].defence = 0;
-		state.players[i].hp = 0;
+		state.players[i].hp = 100;
 		state.players[i].mana = 0;
 		state.players[i].maxMana = 3;
 		state.players[i].attack = 0;
@@ -837,6 +845,7 @@ void GameLogic::StartBattle(GameState& state)
 		state.boss.death = false;
 		//state.boss.id = rand() % 9;
 		state.boss.id = 0;
+		state.boss.nodamageMode = false;
 
 		if (state.boss.id == 0) {
 			state.boss.hp = 100;
@@ -1131,6 +1140,41 @@ void GameLogic::ExecuteEnemyAI(GameState& state, float deltaTime, BattleData& bd
 
 void GameLogic::UpdateBattle_RealTime(GameState& state, float deltaTime, BattleData& bd)
 {
+	//player movement
+	constexpr float speed = 2.0f;
+	for (int i = 0; i < state.playerCount; ++i) {
+		PlayerData& pd = state.players[i];
+		bool change = false;
+		if (pd.Wpress) {
+			pd.Move(0, speed * deltaTime);
+			change = true;
+		}
+		if (pd.Apress) {
+			pd.Move(-speed * deltaTime, 0);
+			change = true;
+		}
+		if (pd.Spress) {
+			pd.Move(0, -speed * deltaTime);
+			change = true;
+		}
+		if (pd.Dpress) {
+			pd.Move(speed * deltaTime, 0);
+			change = true;
+		}
+		if (change) {
+			//send pos
+			STC_OP op;
+			ClientData* client = (ClientData*)pd.clientData;
+			op.SetPtype_SyncBattleOP(client->ParticipateID, PlayerSyncBase::SYNC_POS);
+			op.op_playerpos.posx = pd.pos.x;
+			op.op_playerpos.posy = pd.pos.y;
+			//Send To All Clients
+			for (int i = 0; i < 3; ++i) {
+				int retval = send(clients[client->bd->clientsID[i]].param.sock, (char*)&op, sizeof(STC_OP), 0);
+			}
+		}
+	}
+
 	//CardUpdate(state, deltaTime);
 
 	// ferver time
@@ -1681,7 +1725,6 @@ void GameLogic::ApplyDamageToPlayer(GameState& state, int damage, int playerinde
 
 void GameLogic::ApplyDamageToBoss(GameState& state, int playerID, int rawDamage, BattleData& bd)
 {
-
 	if (state.boss.nodamageMode) {
 		rawDamage = 0;
 	}
