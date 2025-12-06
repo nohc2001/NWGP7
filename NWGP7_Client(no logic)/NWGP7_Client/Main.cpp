@@ -145,6 +145,8 @@ InputData inputdata;
 constexpr float MapMoveMargin = 100;
 constexpr float MapCenterX = 225;
 constexpr float MapCenterY = 250;
+constexpr float PVPMapCenterX = 500;
+constexpr float PVPMapCenterY = 250;
 constexpr int PlayerW = 150;
 constexpr int PlayerH = 200;
 
@@ -389,7 +391,8 @@ public:
 	
 	// 격자 맵 데이터 및 보스 공격 표시
 	static const int GRID_SIZE = 5;       // 고정된 5x5 격자
-	MapTile mapData[GRID_SIZE][GRID_SIZE] = { 0 };  // 0=빈칸, 1=이동가능, 2=보스공격
+	static const int PVP_WIDTH_GRID_SIZE = 10;
+	MapTile mapData[GRID_SIZE][PVP_WIDTH_GRID_SIZE] = { 0 };  // 0=빈칸, 1=이동가능, 2=보스공격
 
 	int currentFeverType = FEVER_NONE;
 };
@@ -2417,12 +2420,16 @@ void Renderer::DrawPvPScreen(HDC hdc, HDC imgDC, const GameState& state, const P
 	float offsetY = PlayerH * rateH;
 	// 5x5 맵
 	SelectObject(hdc, hRedPen);
-	for (int i = 0; i <= 5; ++i) {
-		float lineOffset = (i - (5.0f / 2.0f)) * MapMoveMargin;
-		MoveToEx(hdc, MapCenterX + lineOffset + offsetX, MapCenterY - (5.0f / 2.0f) * MapMoveMargin + offsetY, NULL);
-		LineTo(hdc, MapCenterX + lineOffset + offsetX, MapCenterY + (5.0f / 2.0f) * MapMoveMargin + offsetY);
-		MoveToEx(hdc, MapCenterX - (5.0f / 2.0f) * MapMoveMargin + offsetX, MapCenterY + lineOffset + offsetY, NULL);
-		LineTo(hdc, MapCenterX + (5.0f / 2.0f) * MapMoveMargin + offsetX, MapCenterY + lineOffset + offsetY);
+	for (int i = 0; i <= state.GRID_SIZE; ++i) {
+		float lineOffset = (i - (state.GRID_SIZE / 2.0f)) * MapMoveMargin;
+		MoveToEx(hdc, PVPMapCenterX - (state.PVP_WIDTH_GRID_SIZE / 2.0f) * MapMoveMargin + offsetX, PVPMapCenterY + lineOffset + offsetY, NULL);
+		LineTo(hdc, PVPMapCenterX + (state.PVP_WIDTH_GRID_SIZE / 2.0f) * MapMoveMargin + offsetX, PVPMapCenterY + lineOffset + offsetY);
+	}
+
+	for (int i = 0; i <= state.PVP_WIDTH_GRID_SIZE; ++i) {
+		float lineOffset = (i - (state.PVP_WIDTH_GRID_SIZE / 2.0f)) * MapMoveMargin;
+		MoveToEx(hdc, PVPMapCenterX + lineOffset + offsetX, PVPMapCenterY - (5.0f / 2.0f) * MapMoveMargin + offsetY, NULL);
+		LineTo(hdc, PVPMapCenterX + lineOffset + offsetX, PVPMapCenterY + (5.0f / 2.0f) * MapMoveMargin + offsetY);
 	}
 
 	DrawHand(hdc, imgDC, state, pState, assets);

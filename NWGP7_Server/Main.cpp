@@ -352,7 +352,8 @@ public:
 
 	// 격자 맵 데이터 및 보스 공격 표시
 	static const int GRID_SIZE = 5;       // 고정된 5x5 격자
-	MapTile mapData[GRID_SIZE][GRID_SIZE] = { 0 };  // 0=빈칸, 1=이동가능, 2=보스공격
+	static const int PVP_WIDTH_GRID_SIZE = 10;
+	MapTile mapData[GRID_SIZE][PVP_WIDTH_GRID_SIZE] = { 0 };  // 0=빈칸, 1=이동가능, 2=보스공격
 
 	int currentFeverType = FEVER_NONE;
 };
@@ -445,20 +446,39 @@ thread_local ClientData* clientData;
 
 void PlayerData::Move(float dx, float dy) {
 	ClientData* client = (ClientData*)clientData;
-	pos.x += dx;
-	pos.y += dy;
-	if (pos.x < -2) {
-		pos.x = -2;
-	}
-	else if (pos.x > 2) {
-		pos.x = 2;
-	}
+	if (client->bd->gameState.PvEMode) {
+		pos.x += dx;
+		pos.y += dy;
+		if (pos.x < -2) {
+			pos.x = -2;
+		}
+		else if (pos.x > 2) {
+			pos.x = 2;
+		}
 
-	if (pos.y < -2) {
-		pos.y = -2;
+		if (pos.y < -2) {
+			pos.y = -2;
+		}
+		else if (pos.y > 2) {
+			pos.y = 2;
+		}
 	}
-	else if (pos.y > 2) {
-		pos.y = 2;
+	else {
+		pos.x += dx;
+		pos.y += dy;
+		if (pos.x < -2) {
+			pos.x = -2;
+		}
+		else if (pos.x > 7) {
+			pos.x = 7;
+		}
+
+		if (pos.y < -2) {
+			pos.y = -2;
+		}
+		else if (pos.y > 2) {
+			pos.y = 2;
+		}
 	}
 }
 
