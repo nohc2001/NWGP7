@@ -686,8 +686,34 @@ DWORD WINAPI ProcessMatching(LPVOID arg) {
 
 		if (matching_pvp) {
 			// 방을 만들어 클라이언트에게 게임을 제공한다.
+			ClientData& c0 = clients[pvp_clientsid[0]->client_id];
+			ClientData& c1 = clients[pvp_clientsid[1]->client_id];
+			ClientData& c2 = clients[pvp_clientsid[2]->client_id];
 
-			printf("matching! client %d, %d, %d", raid_clientsid[0]->client_id, raid_clientsid[1]->client_id, raid_clientsid[2]->client_id);
+			battles[battle_id_up].clientsID[0] = pvp_clientsid[0]->client_id;
+			battles[battle_id_up].clientsID[1] = pvp_clientsid[1]->client_id;
+			battles[battle_id_up].clientsID[2] = pvp_clientsid[2]->client_id;
+
+			clients[battles[battle_id_up].clientsID[0]].ParticipateID = 0;
+			clients[battles[battle_id_up].clientsID[1]].ParticipateID = 1;
+			clients[battles[battle_id_up].clientsID[2]].ParticipateID = 2;
+
+			battles[battle_id_up].gameState.PvEMode = false;
+			battles[battle_id_up].OPQueue.clear();
+			battles[battle_id_up].hBattleThread = CreateThread(NULL, 0, ProcessBattle, (LPVOID)&battles[battle_id_up], 0, NULL);
+
+			c0.bd = &battles[battle_id_up];
+			c1.bd = &battles[battle_id_up];
+			c2.bd = &battles[battle_id_up];
+
+			for (int i = 0; i < 3; ++i) {
+				battles[battle_id_up].gameState.players[i].clientData = &clients[battles[battle_id_up].clientsID[i]];
+			}
+
+			battle_id_up += 1;
+
+			printf("matching! pvp client %d, %d, %d", pvp_clientsid[0]->client_id, pvp_clientsid[1]->client_id, pvp_clientsid[2]->client_id);
+
 			for (int i = 0; i < 3; ++i) {
 				pvp_clientsid[i]->client_id = -1;
 			}
@@ -721,7 +747,7 @@ DWORD WINAPI ProcessMatching(LPVOID arg) {
 
 			battle_id_up += 1;
 
-			printf("matching! client %d, %d, %d", raid_clientsid[0]->client_id, raid_clientsid[1]->client_id, raid_clientsid[2]->client_id);
+			printf("matching! raid client %d, %d, %d", raid_clientsid[0]->client_id, raid_clientsid[1]->client_id, raid_clientsid[2]->client_id);
 
 			for (int i = 0; i < 3; ++i) {
 				raid_clientsid[i]->client_id = -1;

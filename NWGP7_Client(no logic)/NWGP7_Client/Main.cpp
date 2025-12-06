@@ -1065,31 +1065,31 @@ unsigned __stdcall Recv_Thread(void* arg)
 			case SYNC_HAND_SLOT_0:
 			{
 				recv(sock, (char*)&targetPlayer.hand[0], sizeof(CardData), MSG_WAITALL);
-				g_Game.m_PState.hand[0].id = targetPlayer.hand[0].id;
+				g_Game.m_PState.hand[0].id = g_Game.m_State.players[g_myPlayerIndex].hand[0].id;
 				break;
 			}
 			case SYNC_HAND_SLOT_1:
 			{
 				recv(sock, (char*)&targetPlayer.hand[1], sizeof(CardData), MSG_WAITALL);
-				g_Game.m_PState.hand[1].id = targetPlayer.hand[1].id;
+				g_Game.m_PState.hand[0].id = g_Game.m_State.players[g_myPlayerIndex].hand[0].id;
 				break;
 			}
 			case SYNC_HAND_SLOT_2:
 			{
 				recv(sock, (char*)&targetPlayer.hand[2], sizeof(CardData), MSG_WAITALL);
-				g_Game.m_PState.hand[2].id = targetPlayer.hand[2].id;
+				g_Game.m_PState.hand[0].id = g_Game.m_State.players[g_myPlayerIndex].hand[0].id;
 				break;
 			}
 			case SYNC_HAND_SLOT_3:
 			{
 				recv(sock, (char*)&targetPlayer.hand[3], sizeof(CardData), MSG_WAITALL);
-				g_Game.m_PState.hand[3].id = targetPlayer.hand[3].id;
+				g_Game.m_PState.hand[0].id = g_Game.m_State.players[g_myPlayerIndex].hand[0].id;
 				break;
 			}
 			case SYNC_HAND_SLOT_4:
 			{
 				recv(sock, (char*)&targetPlayer.hand[4], sizeof(CardData), MSG_WAITALL);
-				g_Game.m_PState.hand[4].id = targetPlayer.hand[4].id;
+				g_Game.m_PState.hand[0].id = g_Game.m_State.players[g_myPlayerIndex].hand[0].id;
 				break;
 			}
 			case SYNC_PLAYER_DEATH:
