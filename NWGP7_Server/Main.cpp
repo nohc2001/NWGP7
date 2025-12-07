@@ -894,47 +894,47 @@ void GameLogic::StartBattle(GameState& state)
 		state.boss.nodamageMode = false;
 
 		if (state.boss.id == 0) {
-			state.boss.hp = 100;
+			state.boss.hp = 1000;
 			state.boss.defence = 0;
 		}
 		else if (state.boss.id == 1) {
-			state.boss.hp = 100;
+			state.boss.hp = 1000;
 			state.boss.defence = 15;
 		}
 		else if (state.boss.id == 2) {
-			state.boss.hp = 100;
+			state.boss.hp = 1000;
 			state.boss.defence = 15;
 		}
 		else if (state.boss.id == 3) {
-			state.boss.hp = 100;
+			state.boss.hp = 1000;
 			state.boss.defence = 20;
 			state.boss.bossmode2 = false;
 			state.boss.boss_statck = 0;
 		}
 		else if (state.boss.id == 4) {
-			state.boss.hp = 100;
+			state.boss.hp = 1000;
 			state.boss.defence = 30;
 		}
 		else if (state.boss.id == 5) {
-			state.boss.hp = 100;
+			state.boss.hp = 1000;
 			state.boss.defence = 20;
 			state.boss.bossmode2 = false;
 			state.boss.boss_statck = 0;
 		}
 		else if (state.boss.id == 6) {
-			state.boss.hp = 100;
+			state.boss.hp = 1000;
 			state.boss.defence = 20;
 			state.boss.boss_statck = 0;
 		}
 		else if (state.boss.id == 7) {
-			state.boss.hp = 100;
+			state.boss.hp = 1000;
 			state.boss.defence = 20;
 			state.boss.nodamageMode = false;
 			state.boss.bossmode3 = false;
 			state.boss.boss_statck = 0;
 		}
 		else if (state.boss.id == 8) {
-			state.boss.hp = 100;
+			state.boss.hp = 1000;
 			state.boss.defence = 20;
 			state.boss.bossAwakening = false;
 		}

@@ -827,7 +827,7 @@ private:
 	void DrawCharacters(HDC hdc, HDC imgDC, const GameState& state, const PresentationState& pState, const AssetManager& assets);
 	void DrawEffects(HDC hdc, HDC imgDC, const GameState& state, const PresentationState& pState, const AssetManager& assets);
 
-	void HPBar(HDC hDC, int x, int y, int hp);
+	void HPBar(HDC hDC, int x, int y, int hp, int maxHp = 100);
 	void ClearCross(HDC hDC, int x, int y, int r);
 };
 
@@ -1066,33 +1066,20 @@ unsigned __stdcall Recv_Thread(void* arg)
 				break;
 			}
 			case SYNC_HAND_SLOT_0:
-			{
-				recv(sock, (char*)&targetPlayer.hand[0], sizeof(CardData), MSG_WAITALL);
-				g_Game.m_PState.hand[0].id = g_Game.m_State.players[g_myPlayerIndex].hand[0].id;
-				break;
-			}
 			case SYNC_HAND_SLOT_1:
-			{
-				recv(sock, (char*)&targetPlayer.hand[1], sizeof(CardData), MSG_WAITALL);
-				g_Game.m_PState.hand[0].id = g_Game.m_State.players[g_myPlayerIndex].hand[0].id;
-				break;
-			}
 			case SYNC_HAND_SLOT_2:
-			{
-				recv(sock, (char*)&targetPlayer.hand[2], sizeof(CardData), MSG_WAITALL);
-				g_Game.m_PState.hand[0].id = g_Game.m_State.players[g_myPlayerIndex].hand[0].id;
-				break;
-			}
 			case SYNC_HAND_SLOT_3:
-			{
-				recv(sock, (char*)&targetPlayer.hand[3], sizeof(CardData), MSG_WAITALL);
-				g_Game.m_PState.hand[0].id = g_Game.m_State.players[g_myPlayerIndex].hand[0].id;
-				break;
-			}
 			case SYNC_HAND_SLOT_4:
 			{
-				recv(sock, (char*)&targetPlayer.hand[4], sizeof(CardData), MSG_WAITALL);
-				g_Game.m_PState.hand[0].id = g_Game.m_State.players[g_myPlayerIndex].hand[0].id;
+				int slotIndex = baseType - SYNC_HAND_SLOT_0;
+
+				recv(sock, (char*)&targetPlayer.hand[slotIndex], sizeof(CardData), MSG_WAITALL);
+
+				if (playerIndex == g_myPlayerIndex)
+				{
+					g_Game.m_PState.hand[slotIndex].id = targetPlayer.hand[slotIndex].id;
+				}
+
 				break;
 			}
 			case SYNC_PLAYER_DEATH:
@@ -2450,19 +2437,19 @@ void Renderer::DrawPVEScreen(HDC hdc, HDC imgDC, const GameState& state, const P
 		TransparentBlt(hdc, pState.boss.x, pState.boss.y - 100, 50, 50, imgDC, 0, 0, assets.ShildWidth, assets.ShildHeight, RGB(255, 255, 255));
 	}
 
-	SelectObject(imgDC, assets.hBitattack);
-	TransparentBlt(hdc, 630, 20, 50, 50, imgDC, 0, 0, assets.attackWidth, assets.attackHeight, RGB(255, 255, 255));
+	//SelectObject(imgDC, assets.hBitattack);
+	//TransparentBlt(hdc, 630, 20, 50, 50, imgDC, 0, 0, assets.attackWidth, assets.attackHeight, RGB(255, 255, 255));
 
-	SelectObject(imgDC, assets.hBitReturn);
-	TransparentBlt(hdc, 10, 10, 70, 70, imgDC, 0, 0, assets.returnWidth, assets.returnHeight, RGB(255, 255, 255));
+	//SelectObject(imgDC, assets.hBitReturn);
+	//TransparentBlt(hdc, 10, 10, 70, 70, imgDC, 0, 0, assets.returnWidth, assets.returnHeight, RGB(255, 255, 255));
 
-	if (state.tempstop) SelectObject(imgDC, assets.hBitstop[1]);
-	else SelectObject(imgDC, assets.hBitstop[0]);
-	TransparentBlt(hdc, 160, 10, 70, 70, imgDC, 0, 0, assets.stopWidth, assets.stopHeight, RGB(255, 255, 255));
+	//if (state.tempstop) SelectObject(imgDC, assets.hBitstop[1]);
+	//else SelectObject(imgDC, assets.hBitstop[0]);
+	//TransparentBlt(hdc, 160, 10, 70, 70, imgDC, 0, 0, assets.stopWidth, assets.stopHeight, RGB(255, 255, 255));
 
-	if (pState.endon) SelectObject(imgDC, assets.endbutton[1]);
-	else SelectObject(imgDC, assets.endbutton[0]);
-	TransparentBlt(hdc, 1050, 600, 70, 55, imgDC, 0, 0, assets.endbuttonWidth, assets.endbuttonHeight, RGB(255, 255, 255));
+	//if (pState.endon) SelectObject(imgDC, assets.endbutton[1]);
+	//else SelectObject(imgDC, assets.endbutton[0]);
+	//TransparentBlt(hdc, 1050, 600, 70, 55, imgDC, 0, 0, assets.endbuttonWidth, assets.endbuttonHeight, RGB(255, 255, 255));
 
 	SelectObject(imgDC, hOldImg);
 
@@ -2684,7 +2671,7 @@ void Renderer::DrawHUD(HDC hdc, const GameState& state, const PresentationState&
 
 		if (state.PvEMode) {
 			if (!state.boss.death) {
-				HPBar(hdc, pState.boss.x + 75, pState.boss.y - 30, state.boss.hp);
+				HPBar(hdc, pState.boss.x + 75, pState.boss.y - 30, state.boss.hp, 1000);
 
 				hFont = CreateFont(40, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, L"Arial");
 				hOldFont = (HFONT)SelectObject(hdc, hFont);
@@ -2939,17 +2926,31 @@ void Renderer::DrawEffects(HDC hdc, HDC imgDC, const GameState& state, const Pre
 	}
 }
 
-void Renderer::HPBar(HDC hDC, int x, int y, int hp) {
-	Rectangle(hDC, x - 50, y - 10, x + 50, y + 10);
+void Renderer::HPBar(HDC hDC, int x, int y, int hp, int maxHp) {
+
+	const int BAR_WIDTH = 100;
+	const int HALF_WIDTH = 50;
+
+	if (maxHp <= 0) maxHp = 1;
+	float ratio = (float)hp / (float)maxHp;
+
+	if (ratio > 1.0f) ratio = 1.0f;
+	if (ratio < 0.0f) ratio = 0.0f;
+
+	Rectangle(hDC, x - HALF_WIDTH, y - 10, x + HALF_WIDTH, y + 10);
+
 	HBRUSH hBrush, oldBrush;
-	if (hp <= 20) hBrush = CreateSolidBrush(RGB(255, 33, 0));
-	else if (hp <= 50) hBrush = CreateSolidBrush(RGB(255, 255, 0));
-	else hBrush = CreateSolidBrush(RGB(33, 255, 0));
+	if (ratio <= 0.2f)       hBrush = CreateSolidBrush(RGB(255, 33, 0));   
+	else if (ratio <= 0.5f)  hBrush = CreateSolidBrush(RGB(255, 255, 0)); 
+	else                     hBrush = CreateSolidBrush(RGB(33, 255, 0));   
 
 	oldBrush = (HBRUSH)SelectObject(hDC, hBrush);
+
 	if (hp > 0) {
-		Rectangle(hDC, x - 50, y - 10, x - 50 + hp, y + 10);
+		int drawWidth = (int)(BAR_WIDTH * ratio);
+		Rectangle(hDC, x - HALF_WIDTH, y - 10, (x - HALF_WIDTH) + drawWidth, y + 10);
 	}
+
 	SelectObject(hDC, oldBrush);
 	DeleteObject(hBrush);
 }
