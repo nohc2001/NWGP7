@@ -1621,37 +1621,52 @@ void ClientLogic::HandleLButtonDown(const GameState& state, PresentationState& p
 
 void ClientLogic::HandleLButtonUp(const GameState& state, PresentationState& pState, int x, int y, HWND hWnd)
 {
-	if (state.PvEMode) { // 레이드
-		for (int i = 0; i < 5; ++i) {
-			if (pState.hand[i].drag) {
-				if (i == 0) { pState.hand[i].x = 300; pState.hand[i].y = 700; }
-				else if (i == 1) { pState.hand[i].x = 450; pState.hand[i].y = 700; }
-				else if (i == 2) { pState.hand[i].x = 600; pState.hand[i].y = 700; }
-				else if (i == 3) { pState.hand[i].x = 750; pState.hand[i].y = 700; }
-				else if (i == 4) { pState.hand[i].x = 900; pState.hand[i].y = 700; }
-
-				if (pState.enermytouch) { // 카드 발동
-					//cout << "PlayCard!" << endl;
-					PlayCard(i, 0, 0, 0);
-				}
-				pState.hand[i].drag = false;
-			}
+	int draggedCardIndex = -1;
+	for (int i = 0; i < 5; ++i) {
+		if (pState.hand[i].drag) {
+			draggedCardIndex = i;
+			break;
 		}
 	}
-	else { // pvp 
-		for (int i = 0; i < 5; ++i) {
-			if (pState.hand[i].drag) {
-				if (i == 0) { pState.hand[i].x = 300; pState.hand[i].y = 700; }
-				else if (i == 1) { pState.hand[i].x = 450; pState.hand[i].y = 700; }
-				else if (i == 2) { pState.hand[i].x = 600; pState.hand[i].y = 700; }
-				else if (i == 3) { pState.hand[i].x = 750; pState.hand[i].y = 700; }
-				else if (i == 4) { pState.hand[i].x = 900; pState.hand[i].y = 700; }
 
-				if (pState.enermytouch) { // 카드 발동
-					//PlayCard(pState.hand[i].id, )
-				}
-				pState.hand[i].drag = false;
+	if (draggedCardIndex == -1) return;
+
+	if (draggedCardIndex == 0) { pState.hand[0].x = 300; pState.hand[0].y = 700; }
+	else if (draggedCardIndex == 1) { pState.hand[1].x = 450; pState.hand[1].y = 700; }
+	else if (draggedCardIndex == 2) { pState.hand[2].x = 600; pState.hand[2].y = 700; }
+	else if (draggedCardIndex == 3) { pState.hand[3].x = 750; pState.hand[3].y = 700; }
+	else if (draggedCardIndex == 4) { pState.hand[4].x = 900; pState.hand[4].y = 700; }
+
+	pState.hand[draggedCardIndex].drag = false; 
+
+
+	if (state.PvEMode) {
+		if (pState.enermytouch) {
+			PlayCard(draggedCardIndex, -1, 0, 0);
+		}
+	}
+	else { 
+		int targetID = -1;
+
+		for (int i = 0; i < GameState::playerCount; ++i) {
+			const PlayerPresentation& p = pState.players[i];
+			const PlayerData& pData = state.players[i];
+
+			if (pData.playerdeath) continue;
+
+			int charWidth = (int)(150 * 0.75f); 
+			int charHeight = (int)(200 * 0.75f);
+
+			if (x >= p.x && x <= p.x + charWidth &&
+				y >= p.y && y <= p.y + charHeight)
+			{
+				targetID = i; 
+				break;
 			}
+		}
+		if (targetID != -1) {
+
+			PlayCard(draggedCardIndex, targetID, 0, 0);
 		}
 	}
 }
@@ -2766,6 +2781,22 @@ void Renderer::DrawHand(HDC hdc, HDC imgDC, const GameState& state, const Presen
 void Renderer::DrawCharacters(HDC hdc, HDC imgDC, const GameState& state, const PresentationState& pState, const AssetManager& assets) {
 	HBITMAP hOldImg = NULL;
 
+	HFONT hNameFont = CreateFont(24, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, ANSI_CHARSET,
+		OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+		DEFAULT_PITCH | FF_SWISS, L"Arial");
+
+	HFONT hDefFont = CreateFont(18, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, ANSI_CHARSET,
+		OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+		DEFAULT_PITCH | FF_SWISS, L"Arial");
+
+	HBRUSH hBrushHP = CreateSolidBrush(RGB(0, 255, 0));
+	HBRUSH hBrushBack = CreateSolidBrush(RGB(80, 80, 80)); 
+
+	HFONT hOldFont = (HFONT)SelectObject(hdc, hNameFont);
+	SetBkMode(hdc, TRANSPARENT);
+
+
+
 	for (int i = 0; i < GameState::playerCount; ++i) {
 		const PlayerPresentation& p = pState.players[i];
 		const PlayerData& pd = state.players[i];
@@ -2778,7 +2809,58 @@ void Renderer::DrawCharacters(HDC hdc, HDC imgDC, const GameState& state, const 
 			hOldImg = (HBITMAP)SelectObject(imgDC, assets.Cha[p.animCount]);
 			TransparentBlt(hdc, p.x, p.y, PlayerW * 0.75f, PlayerH * 0.75f, imgDC, 0, 0, assets.chaWidth, assets.chaHeight, RGB(100, 100, 100));
 		}
+
+		int centerX = p.x + 56;
+		int topY = p.y - 40;
+
+		SelectObject(hdc, hNameFont);
+
+		if (i == g_myPlayerIndex) SetTextColor(hdc, RGB(0, 255, 0));
+		else SetTextColor(hdc, RGB(255, 255, 0));
+
+		TCHAR nameBuf[10];
+		wsprintf(nameBuf, L"P%d", i + 1);
+
+		TextOut(hdc, centerX - 15, topY, nameBuf, lstrlen(nameBuf));
+
+		if (!pd.playerdeath) {
+			int barW = 50; 
+			int barH = 6; 
+			int barX = centerX - (barW / 2);
+			int barY = topY + 25;
+
+			RECT rcBack = { barX, barY, barX + barW, barY + barH };
+			FillRect(hdc, &rcBack, hBrushBack);
+
+			if (pd.hp > 0) {
+				float ratio = (float)pd.hp / 100.0f;
+				if (ratio > 1.0f) ratio = 1.0f;
+				int drawW = (int)(barW * ratio);
+				RECT rcHP = { barX, barY, barX + drawW, barY + barH };
+				FillRect(hdc, &rcHP, hBrushHP);
+			}
+
+			HBRUSH oldBrush = (HBRUSH)SelectObject(hdc, GetStockObject(NULL_BRUSH));
+			Rectangle(hdc, barX, barY, barX + barW, barY + barH);
+			SelectObject(hdc, oldBrush);
+		}
+
+		if (pd.defence > 0 && !pd.playerdeath) {
+			SelectObject(hdc, hDefFont);
+			SetTextColor(hdc, RGB(0, 200, 255));
+
+			TCHAR defBuf[10];
+			wsprintf(defBuf, L"%d", pd.defence);
+
+			TextOut(hdc, centerX + 30, topY + 18, defBuf, lstrlen(defBuf));
+		}
 	}
+
+	SelectObject(hdc, hOldFont);
+	DeleteObject(hNameFont);
+	DeleteObject(hDefFont);
+	DeleteObject(hBrushHP);
+	DeleteObject(hBrushBack);
 
 	// 적
 	if (state.PvEMode) {

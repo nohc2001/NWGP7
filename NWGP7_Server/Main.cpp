@@ -382,8 +382,9 @@ public:
 	void ExecuteEnemyAI(GameState& state, float deltaTime, BattleData& bd);
 	void UpdateBuffsAndTimers(GameState& state, float deltaTime);
 
-	void PlayCard(GameState& state, int cardIndex, BattleData& bd, int playerIndex = 0); // 카드 사용
+	void PlayCard(GameState& state, int cardIndex, BattleData& bd, int playerIndex = 0, int targetIndex = -1); // 카드 사용
 	void PlayCardLogic(GameState& state, int cardID, BattleData& bd, int playerindex = 0, bool usedByMonster = false); // 카드 사용
+	void PlayCardLogicPvP(GameState& state, int cardID, BattleData& bd, int attackerIndex, int targetIndex);
 
 	void CardUpdate(GameState& state, float deltaTime, BattleData& bd);
 
@@ -592,8 +593,8 @@ void ExecuteOP(BattleData& bd) {
 		}
 		case CTS_PT_PlayCard:
 		{
-			printf("player %d Use Card index : %d \n", op.op_playcard.playerID, op.op_playcard.cardindex);
-			bd.gameLogic.PlayCard(bd.gameState, op.op_playcard.cardindex, bd, op.op_playcard.playerID);
+			printf("player %d Use Card index : %d, Target : %d \n", op.op_playcard.playerID, op.op_playcard.cardindex, op.op_playcard.enemyID);
+			bd.gameLogic.PlayCard(bd.gameState, op.op_playcard.cardindex, bd, op.op_playcard.playerID, op.op_playcard.enemyID);
 			break;
 		}
 		}
@@ -940,7 +941,17 @@ void GameLogic::StartBattle(GameState& state)
 		}
 	}
 	else { // pvp
+		state.players[0].pos.x = 0;
+		state.players[0].pos.y = 2;
+		
+		state.players[1].pos.x = -2;
+		state.players[1].pos.x = -2;
 
+		state.players[2].pos.x = 2;
+		state.players[2].pos.x = 2;
+
+		state.boss.death = true;
+		state.boss.hp = 0;
 	}
 }
 
@@ -1002,7 +1013,32 @@ void GameLogic::CheckWinLossConditionsPvE(GameState& state, BattleData& bd)
 
 void GameLogic::CheckWinLossConditionsPvP(GameState& state, BattleData& bd)
 {
-	// pvp 모드 승리 패배 조건
+	int survivorCount = 0; 
+	int lastSurvivorIndex = -1;
+
+	for (int i = 0; i < GameState::playerCount; ++i) {
+		PlayerData& p = state.players[i];
+
+		if (p.hp <= 0 && !p.playerdeath) {
+			p.playerdeath = true;
+
+			char ptype = (i * PLAYER_SYNC_STRIDE) + SYNC_PLAYER_DEATH;
+			RecordSTCPacket(bd, ptype, &p.playerdeath, sizeof(bool));
+
+			//사망 이펙트 전송
+		}
+
+		if (!p.playerdeath) {
+			survivorCount++;
+			lastSurvivorIndex = i;
+		}
+	}
+
+	if (survivorCount <= 1 && !state.GameClear) {
+		state.GameClear = true;
+
+		printf("Game Over! Winner is Player %d\n", lastSurvivorIndex + 1);
+	}
 }
 
 void GameLogic::AttackWarning(GameState& state, BattleData& bd)
@@ -1033,24 +1069,41 @@ void GameLogic::AttackOnRandomGreed(GameState& state, int damage, BattleData& bd
 
 	char ptype = STC_Sync_MapData;
 	RecordSTCPacket(bd, ptype, state.mapData, sizeof(state.mapData));
-	
-	///effect
+
 	int EffectType = Effect_Boss_attack;
 	RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
-	///
 
-	for (int i = 0; i < GameState::playerCount; ++i) {
-		PlayerData& p = state.players[i];
+	constexpr float COLLISION_RANGE = 0.75f;
+
+	for (int pIdx = 0; pIdx < GameState::playerCount; ++pIdx) {
+		PlayerData& p = state.players[pIdx];
 
 		if (p.playerdeath) continue;
 
-		int px = p.pos.x + 2;
-		int py = 2 - p.pos.y;
+		bool isHit = false;
 
-		if (px < 0 || px >= GameState::GRID_SIZE || py < 0 || py >= GameState::GRID_SIZE) continue;
+		for (int r = 0; r < GameState::GRID_SIZE; ++r) {
+			for (int c = 0; c < GameState::GRID_SIZE; ++c) {
 
-		if (state.mapData[py][px].pattern == PATTERN_ATTACK) {
-			ApplyDamageToPlayer(state, damage, i, bd);
+				if (state.mapData[r][c].pattern == PATTERN_ATTACK) {
+
+					float tileWorldX = (float)(c - 2);
+					float tileWorldY = (float)(2 - r);
+
+					float diffX = abs(p.pos.x - tileWorldX);
+					float diffY = abs(p.pos.y - tileWorldY);
+
+					if (diffX < COLLISION_RANGE && diffY < COLLISION_RANGE) {
+						isHit = true;
+						break; 
+					}
+				}
+			}
+			if (isHit) break; 
+		}
+
+		if (isHit) {
+			ApplyDamageToPlayer(state, damage, pIdx, bd);
 		}
 	}
 }
@@ -1375,7 +1428,7 @@ void GameLogic::UpdateBuffsAndTimers(GameState& state, float deltaTime)
 
 }
 
-void GameLogic::PlayCard(GameState& state, int cardIndex, BattleData& bd, int playerIndex) {
+void GameLogic::PlayCard(GameState& state, int cardIndex, BattleData& bd, int playerIndex, int targetIndex) {
 	PlayerData& player = state.players[playerIndex];
 	CardData& card = player.hand[cardIndex];
 
@@ -1405,7 +1458,7 @@ void GameLogic::PlayCard(GameState& state, int cardIndex, BattleData& bd, int pl
 	}
 	// Card ID 3: 자세잡기 (Cost 1, Defense +3, Mana +1)
 	else if (card.id == 3 && player.mana >= 1) {
-		manaCost = 3;
+		manaCost = 1;
 		isused = true;
 	}
 	// Card ID 4: 돌진 (Cost 2, Attack 40, Defense +10, Attack resets)
@@ -1470,7 +1523,13 @@ void GameLogic::PlayCard(GameState& state, int cardIndex, BattleData& bd, int pl
 		char ptypeMana = (playerIndex * PLAYER_SYNC_STRIDE) + SYNC_MANA;
 		RecordSTCPacket(bd, ptypeMana, &newMana, sizeof(float));
 
-		PlayCardLogic(state, card.id, bd, playerIndex, false);
+		if (state.PvEMode) {
+			PlayCardLogic(state, card.id, bd, playerIndex, false);
+		}
+		else {
+			PlayCardLogicPvP(state, card.id, bd, playerIndex, targetIndex);
+		}
+
 
 		card.id = rand() % 15;
 		CardData newCard = card;
@@ -1711,6 +1770,138 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, BattleData& bd, int 
 			char ptypeAtk = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_ATTACK;
 			RecordSTCPacket(bd, ptypeAtk, &player.attack, sizeof(int));
 		}
+	}
+}
+
+void GameLogic::PlayCardLogicPvP(GameState& state, int cardID, BattleData& bd, int attackerIndex, int targetIndex)
+{
+	PlayerData& attacker = state.players[attackerIndex];
+
+	bool isValidTarget = (targetIndex >= 0 && targetIndex < GameState::playerCount && targetIndex != attackerIndex);
+	if (isValidTarget && state.players[targetIndex].playerdeath) isValidTarget = false;
+
+	int extraDamage = 0;
+	bool isAttackCard = (cardID == 0 || cardID == 1 || cardID == 2 || cardID == 4 ||
+		cardID == 5 || cardID == 7 || cardID == 10 || cardID == 11 || cardID == 13);
+
+	if (isAttackCard && attacker.attack > 0) {
+		extraDamage = attacker.attack; 
+		attacker.attack = 0;           
+
+		char ptypeAtk = (attackerIndex * PLAYER_SYNC_STRIDE) + SYNC_ATTACK;
+		RecordSTCPacket(bd, ptypeAtk, &attacker.attack, sizeof(int));
+	}
+
+	// Card ID 0: 심장 뽑기 (공격 + 힐)
+	if (cardID == 0) {
+		if (isValidTarget) ApplyDamageToPlayer(state, 70 + extraDamage, targetIndex, bd);
+
+		// 자신 회복
+		attacker.hp += 10;
+		if (attacker.hp > 100) attacker.hp = 100;
+
+		char ptypeHP = (attackerIndex * PLAYER_SYNC_STRIDE) + SYNC_HP;
+		RecordSTCPacket(bd, ptypeHP, &attacker.hp, sizeof(int));
+	}
+	// Card ID 1: 심판
+	else if (cardID == 1) {
+		if (isValidTarget) ApplyDamageToPlayer(state, 90 + extraDamage, targetIndex, bd);
+	}
+	// Card ID 2: 강타
+	else if (cardID == 2) {
+		if (isValidTarget) ApplyDamageToPlayer(state, 60 + extraDamage, targetIndex, bd);
+	}
+	// Card ID 3: 자세잡기 (버프)
+	else if (cardID == 3) {
+		attacker.mana += 1.0f;
+		attacker.defence += 3;
+
+		char ptypeMana = (attackerIndex * PLAYER_SYNC_STRIDE) + SYNC_MANA;
+		RecordSTCPacket(bd, ptypeMana, &attacker.mana, sizeof(float));
+		char ptypeDef = (attackerIndex * PLAYER_SYNC_STRIDE) + SYNC_DEFFENCE;
+		RecordSTCPacket(bd, ptypeDef, &attacker.defence, sizeof(int));
+	}
+	// Card ID 4: 돌진 (공격 + 방어)
+	else if (cardID == 4) {
+		if (isValidTarget) ApplyDamageToPlayer(state, 40 + extraDamage, targetIndex, bd);
+
+		attacker.defence += 10;
+		char ptypeDef = (attackerIndex * PLAYER_SYNC_STRIDE) + SYNC_DEFFENCE;
+		RecordSTCPacket(bd, ptypeDef, &attacker.defence, sizeof(int));
+	}
+	// Card ID 5: 대검휘두르기
+	else if (cardID == 5) {
+		if (isValidTarget) ApplyDamageToPlayer(state, 50 + extraDamage, targetIndex, bd);
+	}
+	// Card ID 6: 바리게이트 (버프)
+	else if (cardID == 6) {
+		attacker.defence *= 2;
+		char ptypeDef = (attackerIndex * PLAYER_SYNC_STRIDE) + SYNC_DEFFENCE;
+		RecordSTCPacket(bd, ptypeDef, &attacker.defence, sizeof(int));
+	}
+	// Card ID 7: 방패 밀쳐내기 (방어력 비례 공격)
+	else if (cardID == 7) {
+		if (isValidTarget) ApplyDamageToPlayer(state, attacker.defence + extraDamage, targetIndex, bd);
+	}
+	// Card ID 8: 굳건한 태세 (무적)
+	else if (cardID == 8) {
+		attacker.invincible = true;
+		char ptypeInv = (attackerIndex * PLAYER_SYNC_STRIDE) + SYNC_INVINCIBLE;
+		RecordSTCPacket(bd, ptypeInv, &attacker.invincible, sizeof(bool));
+	}
+	// Card ID 9: 방패 세우기 (버프)
+	else if (cardID == 9) {
+		attacker.defence += 5;
+		char ptypeDef = (attackerIndex * PLAYER_SYNC_STRIDE) + SYNC_DEFFENCE;
+		RecordSTCPacket(bd, ptypeDef, &attacker.defence, sizeof(int));
+	}
+	// Card ID 10: 절단 (방어 무시)
+	else if (cardID == 10) {
+		attacker.cutting = true;
+		char ptypeCut = (attackerIndex * PLAYER_SYNC_STRIDE) + SYNC_CUTTING;
+		RecordSTCPacket(bd, ptypeCut, &attacker.cutting, sizeof(bool));
+
+		if (isValidTarget) ApplyDamageToPlayer(state, 40 + extraDamage, targetIndex, bd);
+	}
+	// Card ID 11: 일격 (캐스팅 후 다음 턴 공격)
+	else if (cardID == 11) {
+		attacker.isCastingOnePunch = true;
+		attacker.onePunchCastTimer = 3.0f;
+		attacker.onePunchStoredDamage = 140 + extraDamage;
+
+		char ptypeCast = (attackerIndex * PLAYER_SYNC_STRIDE) + SYNC_IS_CASTING_ONEPUNCH;
+		RecordSTCPacket(bd, ptypeCast, &attacker.isCastingOnePunch, sizeof(bool));
+		char ptypeTimer = (attackerIndex * PLAYER_SYNC_STRIDE) + SYNC_ONEPUNCH_TIMER;
+		RecordSTCPacket(bd, ptypeTimer, &attacker.onePunchCastTimer, sizeof(float));
+		char ptypeDmg = (attackerIndex * PLAYER_SYNC_STRIDE) + SYNC_ONEPUNCH_DAMAGE;
+		RecordSTCPacket(bd, ptypeDmg, &attacker.onePunchStoredDamage, sizeof(int));
+	}
+	// Card ID 12: 고속 이동 (버프)
+	else if (cardID == 12) {
+		attacker.mana += 1.0f;
+		attacker.defence += 5;
+
+		char ptypeMana = (attackerIndex * PLAYER_SYNC_STRIDE) + SYNC_MANA;
+		RecordSTCPacket(bd, ptypeMana, &attacker.mana, sizeof(float));
+		char ptypeDef = (attackerIndex * PLAYER_SYNC_STRIDE) + SYNC_DEFFENCE;
+		RecordSTCPacket(bd, ptypeDef, &attacker.defence, sizeof(int));
+	}
+	// Card ID 13: 혈류 (자해 + 공격)
+	else if (cardID == 13) {
+		// 내 피 깎기
+		attacker.hp -= 10;
+		if (attacker.hp < 0) attacker.hp = 0; 
+		char ptypeHP = (attackerIndex * PLAYER_SYNC_STRIDE) + SYNC_HP;
+		RecordSTCPacket(bd, ptypeHP, &attacker.hp, sizeof(int));
+
+		// 적 공격
+		if (isValidTarget) ApplyDamageToPlayer(state, 60 + extraDamage, targetIndex, bd);
+	}
+	// Card ID 14: 정조준 (다음 공격 강화)
+	else if (cardID == 14) {
+		attacker.attack += 20;
+		char ptypeAtk = (attackerIndex * PLAYER_SYNC_STRIDE) + SYNC_ATTACK;
+		RecordSTCPacket(bd, ptypeAtk, &attacker.attack, sizeof(int));
 	}
 }
 
