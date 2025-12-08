@@ -1608,6 +1608,9 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, BattleData& bd, int 
 			int EffectType = Effect_Sword;
 			RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
 
+			int EffectType2 = Effect_Player_HPUp;
+			RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType2, sizeof(int));
+
 			int damage = 70;
 			if (player.attack != 0) {
 				damage += player.attack;
@@ -1706,6 +1709,8 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, BattleData& bd, int 
 				// 추가 공격 다운 애니메이션 이펙트
 				char ptypeAtk = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_ATTACK;
 				RecordSTCPacket(bd, ptypeAtk, &player.attack, sizeof(int));
+
+
 			}
 			ApplyDamageToBoss(state, playerindex, damage, bd);
 		}
@@ -1747,6 +1752,8 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, BattleData& bd, int 
 			// 방어 업, 텟카이 애니메이션 이펙트
 			char ptypeDef = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_DEFFENCE;
 			RecordSTCPacket(bd, ptypeDef, &player.defence, sizeof(int));
+
+
 		}
 		// Card ID 10: 절단 (Cost 2, Attack 40 (ignores defense), Attack resets)
 		else if (cardID == 10) {

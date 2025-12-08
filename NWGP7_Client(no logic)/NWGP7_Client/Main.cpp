@@ -1052,25 +1052,63 @@ unsigned __stdcall Recv_Thread(void* arg)
 		if (recent_stcOP.ptype >= 0 && recent_stcOP.ptype < 96) {
 			int playerIndex = recent_stcOP.ptype / PLAYER_SYNC_STRIDE; // 0, 1, 2
 			int baseType = recent_stcOP.ptype % PLAYER_SYNC_STRIDE;
-
+		
 			PlayerData& targetPlayer = g_Game.m_State.players[playerIndex];
+			PresentationState& presentPlayer = g_Game.m_PState;
+
+			int oldhp = targetPlayer.hp;
+			int olddef = targetPlayer.defence;
+			int oldmana = targetPlayer.mana;
+			int oldattack = targetPlayer.attack;
+
+			int deltahp;
+			int deltadef;
+			int deltamana;
+			int deltaattack;
 
 			switch (baseType)
 			{
 			case SYNC_HP:
 				recv(sock, (char*)&targetPlayer.hp, sizeof(int), MSG_WAITALL);
+				deltahp = oldhp - targetPlayer.hp;
+
+				if (deltahp > 0) {
+					presentPlayer.dedamge = deltahp;
+				}
+				else {
+					presentPlayer.healenergy = -deltahp;
+				}
 				break;
 			case SYNC_MAX_MANA:
 				recv(sock, (char*)&targetPlayer.maxMana, sizeof(float), MSG_WAITALL);
 				break;
 			case SYNC_MANA:
 				recv(sock, (char*)&targetPlayer.mana, sizeof(float), MSG_WAITALL);
+				deltamana = (int)(oldmana - targetPlayer.mana);
+				if (deltamana < 0)
+				{
+					presentPlayer.healmana = -deltamana;
+				}
 				break;
 			case SYNC_DEFFENCE:
 				recv(sock, (char*)&targetPlayer.defence, sizeof(int), MSG_WAITALL);
+				deltadef = olddef - targetPlayer.defence;
+				if (deltadef > 0) {
+					presentPlayer.defensedown = deltadef;
+				}
+				else {
+					presentPlayer.defenseup = -deltadef;
+				}
 				break;
 			case SYNC_ATTACK:
 				recv(sock, (char*)&targetPlayer.attack, sizeof(int), MSG_WAITALL);
+				deltaattack = oldattack - targetPlayer.attack;
+				if (deltaattack > 0) {
+					presentPlayer.minusattack = deltaattack;
+				}
+				else {
+					presentPlayer.plusattack = -deltaattack;
+				}
 				break;
 			case SYNC_POS:
 			{
