@@ -62,6 +62,19 @@ enum EffectType {
 	Effect_Quake = 3,
 	Effect_Boss_attack = 4,
 	Effect_Player_Death = 5,
+
+	Effect_Player_HPUp = 6,
+	Effect_Player_HPDown = 7,
+
+	Effect_Player_DeffeceUp = 8,
+	Effect_Player_DeffenceDown = 9,
+
+	Effect_Player_ManaUp = 10,
+	Effect_Player_ManaDown = 11,
+
+	Effect_Player_AttackUp = 12,
+	Effect_Player_AttackDown = 13,
+
 };
 
 struct CardData {
@@ -1699,7 +1712,29 @@ void ClientLogic::OnServerEvent(PresentationState& pState, int EffectType)
 			pState.hand[i].on = false;
 		}
 		break;
+	case Effect_Player_HPUp:
+		pState.healenergy = true;
+		break;
 
+	case Effect_Player_HPDown:
+		pState.dedamge = true;
+		break;
+
+	case Effect_Player_DeffeceUp:
+		pState.defenseup = true;
+		break;
+
+	case Effect_Player_DeffenceDown:
+		pState.defensedown = true;
+		break;
+
+	case Effect_Player_ManaUp:
+		pState.healmana = true;
+		break;
+
+	case Effect_Player_ManaDown:
+		pState.killmana = true;
+		break;
 
 	}
 

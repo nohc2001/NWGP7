@@ -21,6 +21,19 @@ enum EffectType {
 	Effect_Quake = 3,
 	Effect_Boss_attack = 4,
 	Effect_Player_Death = 5,
+
+	Effect_Player_HPUp = 6,
+	Effect_Player_HPDown = 7,
+
+	Effect_Player_DeffeceUp = 8,
+	Effect_Player_DeffenceDown = 9,
+
+	Effect_Player_ManaUp = 10,
+	Effect_Player_ManaDown = 11,
+
+	Effect_Player_AttackUp = 12,
+	Effect_Player_AttackDown = 13,
+
 };
 
 enum ClientToServer_ProtocolType {
@@ -1549,11 +1562,6 @@ void GameLogic::PlayCard(GameState& state, int cardIndex, BattleData& bd, int pl
 		// 마나 다운 애니메이션 이벤트
 		
 		// 카드 사용 애니매이션 이벤트
-		int EffectType = Effect_Sword;
-		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
-
-		int EffectType2 = Effect_Quake;
-		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType2, sizeof(int));
 	}
 }
 
@@ -1597,6 +1605,9 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, BattleData& bd, int 
 	else {
 		// Card ID 0: 심장 뽑기 (Cost 2, Attack 70, Heal 10, Attack resets)
 		if (cardID == 0) {
+			int EffectType = Effect_Sword;
+			RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+
 			int damage = 70;
 			if (player.attack != 0) {
 				damage += player.attack;
@@ -1612,6 +1623,12 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, BattleData& bd, int 
 		}
 		// Card ID 1: 심판 (Cost 3, Attack 90, Attack resets)
 		else if (cardID == 1) {
+			int EffectType = Effect_Sword;
+			RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+
+			int EffectType2 = Effect_Quake;
+			RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType2, sizeof(int));
+
 			int damage = 90;
 			if (player.attack != 0) {
 				damage += player.attack;
@@ -1624,6 +1641,9 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, BattleData& bd, int 
 		}
 		// Card ID 2: 강타 (Cost 2, Attack 60, Attack resets)
 		else if (cardID == 2) {
+			int EffectType = Effect_Sword;
+			RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+
 			int damage = 60;
 			if (player.attack != 0) {
 				damage += player.attack;
@@ -1636,6 +1656,12 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, BattleData& bd, int 
 		}
 		// Card ID 3: 자세잡기 (Cost 1, Defense +3, Mana +1)
 		else if (cardID == 3) {
+			int EffectType = Effect_Player_ManaUp;
+			RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+
+			int EffectType2 = Effect_Player_DeffeceUp;
+			RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType2, sizeof(int));
+
 			player.mana += 1.0f;
 			player.defence += 3;
 			// 마나 업, 방어 업 애니매이션, 테카이 애니매이션 이펙트
@@ -1646,6 +1672,12 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, BattleData& bd, int 
 		}
 		// Card ID 4: 돌진 (Cost 2, Attack 40, Defense +10, Attack resets)
 		else if (cardID == 4) {
+			int EffectType = Effect_Sword;
+			RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+
+			int EffectType2 = Effect_Player_DeffeceUp;
+			RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType2, sizeof(int));
+
 			int damage = 60;
 			if (player.attack != 0) {
 				damage += player.attack;
@@ -1663,6 +1695,9 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, BattleData& bd, int 
 		}
 		// Card ID 5: 대검휘두르기 (Cost 1, Attack 50, Attack resets)
 		else if (cardID == 5) {
+			int EffectType = Effect_Sword;
+			RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+
 			int damage = 50;
 			if (player.attack != 0) {
 				damage += player.attack;
@@ -1683,6 +1718,9 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, BattleData& bd, int 
 		}
 		// Card ID 7: 방패 밀쳐내기 (Cost 1, Attack = Defense, Attack resets)
 		else if (cardID == 7) {
+			int EffectType = Effect_Sword;
+			RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+
 			int damage = player.defence;
 			if (player.attack != 0) {
 				damage += player.attack;
@@ -1702,6 +1740,9 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, BattleData& bd, int 
 		}
 		// Card ID 9: 방패 세우기 (Cost 1, Defense +5)
 		else if (cardID == 9) {
+			int EffectType = Effect_Player_DeffeceUp;
+			RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+
 			player.defence += 5;
 			// 방어 업, 텟카이 애니메이션 이펙트
 			char ptypeDef = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_DEFFENCE;
@@ -1709,6 +1750,9 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, BattleData& bd, int 
 		}
 		// Card ID 10: 절단 (Cost 2, Attack 40 (ignores defense), Attack resets)
 		else if (cardID == 10) {
+			int EffectType = Effect_Sword;
+			RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+			
 			int damage = 40;
 			if (player.attack != 0) {
 				damage += player.attack;
@@ -1725,6 +1769,12 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, BattleData& bd, int 
 		}
 		// Card ID 11: 일격 (Cost 3, Attack 140 next turn, Attack resets)
 		else if (cardID == 11) {
+			int EffectType = Effect_Sword;
+			RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+
+			int EffectType2 = Effect_Quake;
+			RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType2, sizeof(int));
+
 			int damage = 140;
 			if (player.attack != 0) {
 				damage += player.attack;
@@ -1746,6 +1796,12 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, BattleData& bd, int 
 		}
 		// Card ID 12: 고속 이동 (Cost 2, Defense +5, Mana +1)
 		else if (cardID == 12) {
+			int EffectType = Effect_Player_ManaUp;
+			RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+
+			int EffectType2 = Effect_Player_DeffeceUp;
+			RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType2, sizeof(int));
+
 			player.mana += 1.0f; // 마나 업 애니매이션
 			player.defence += 5; // 방어력 업 애니메이션
 
@@ -1756,6 +1812,12 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, BattleData& bd, int 
 		}
 		// Card ID 13: 혈류 (Cost 1, HP -10, Attack 60, Attack resets)
 		else if (cardID == 13) {
+			int EffectType = Effect_Sword;
+			RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+
+			int EffectType2 = Effect_Player_HPDown;
+			RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType2, sizeof(int));
+
 			int damage = 60;
 			if (player.attack != 0) {
 				damage += player.attack;
@@ -1775,6 +1837,9 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, BattleData& bd, int 
 		}
 		// Card ID 14: 정조준 (Cost 1, Next Attack +20)
 		else if (cardID == 14) {
+			int EffectType = Effect_Player_AttackUp;
+			RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+
 			player.attack += 20;
 			// 공격력 업 애니매이션, 스나이퍼 애니메이션
 			char ptypeAtk = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_ATTACK;
@@ -1804,6 +1869,10 @@ void GameLogic::PlayCardLogicPvP(GameState& state, int cardID, BattleData& bd, i
 
 	// Card ID 0: 심장 뽑기 (공격 + 힐)
 	if (cardID == 0) {
+
+		int EffectType = Effect_Sword;
+		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+
 		if (isValidTarget) ApplyDamageToPlayer(state, 70 + extraDamage, targetIndex, bd);
 
 		// 자신 회복
@@ -1815,14 +1884,29 @@ void GameLogic::PlayCardLogicPvP(GameState& state, int cardID, BattleData& bd, i
 	}
 	// Card ID 1: 심판
 	else if (cardID == 1) {
+		int EffectType = Effect_Sword;
+		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+
+		int EffectType2 = Effect_Quake;
+		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType2, sizeof(int));
+
 		if (isValidTarget) ApplyDamageToPlayer(state, 90 + extraDamage, targetIndex, bd);
 	}
 	// Card ID 2: 강타
 	else if (cardID == 2) {
+		int EffectType = Effect_Sword;
+		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+
 		if (isValidTarget) ApplyDamageToPlayer(state, 60 + extraDamage, targetIndex, bd);
 	}
 	// Card ID 3: 자세잡기 (버프)
 	else if (cardID == 3) {
+		int EffectType = Effect_Player_ManaUp;
+		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+
+		int EffectType2 = Effect_Player_DeffeceUp;
+		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType2, sizeof(int));
+
 		attacker.mana += 1.0f;
 		attacker.defence += 3;
 
@@ -1833,6 +1917,12 @@ void GameLogic::PlayCardLogicPvP(GameState& state, int cardID, BattleData& bd, i
 	}
 	// Card ID 4: 돌진 (공격 + 방어)
 	else if (cardID == 4) {
+		int EffectType = Effect_Sword;
+		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+
+		int EffectType2 = Effect_Player_DeffeceUp;
+		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType2, sizeof(int));
+
 		if (isValidTarget) ApplyDamageToPlayer(state, 40 + extraDamage, targetIndex, bd);
 
 		attacker.defence += 10;
@@ -1841,6 +1931,9 @@ void GameLogic::PlayCardLogicPvP(GameState& state, int cardID, BattleData& bd, i
 	}
 	// Card ID 5: 대검휘두르기
 	else if (cardID == 5) {
+		int EffectType = Effect_Sword;
+		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+
 		if (isValidTarget) ApplyDamageToPlayer(state, 50 + extraDamage, targetIndex, bd);
 	}
 	// Card ID 6: 바리게이트 (버프)
@@ -1851,6 +1944,9 @@ void GameLogic::PlayCardLogicPvP(GameState& state, int cardID, BattleData& bd, i
 	}
 	// Card ID 7: 방패 밀쳐내기 (방어력 비례 공격)
 	else if (cardID == 7) {
+		int EffectType = Effect_Sword;
+
+		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
 		if (isValidTarget) ApplyDamageToPlayer(state, attacker.defence + extraDamage, targetIndex, bd);
 	}
 	// Card ID 8: 굳건한 태세 (무적)
@@ -1861,12 +1957,18 @@ void GameLogic::PlayCardLogicPvP(GameState& state, int cardID, BattleData& bd, i
 	}
 	// Card ID 9: 방패 세우기 (버프)
 	else if (cardID == 9) {
+		int EffectType2 = Effect_Player_DeffeceUp;
+		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType2, sizeof(int));
+
 		attacker.defence += 5;
 		char ptypeDef = (attackerIndex * PLAYER_SYNC_STRIDE) + SYNC_DEFFENCE;
 		RecordSTCPacket(bd, ptypeDef, &attacker.defence, sizeof(int));
 	}
 	// Card ID 10: 절단 (방어 무시)
 	else if (cardID == 10) {
+		int EffectType = Effect_Sword;
+		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+
 		attacker.cutting = true;
 		char ptypeCut = (attackerIndex * PLAYER_SYNC_STRIDE) + SYNC_CUTTING;
 		RecordSTCPacket(bd, ptypeCut, &attacker.cutting, sizeof(bool));
@@ -1875,6 +1977,12 @@ void GameLogic::PlayCardLogicPvP(GameState& state, int cardID, BattleData& bd, i
 	}
 	// Card ID 11: 일격 (캐스팅 후 다음 턴 공격)
 	else if (cardID == 11) {
+		int EffectType = Effect_Sword;
+		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+
+		int EffectType2 = Effect_Quake;
+		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType2, sizeof(int));
+
 		attacker.isCastingOnePunch = true;
 		attacker.onePunchCastTimer = 3.0f;
 		attacker.onePunchStoredDamage = 140 + extraDamage;
@@ -1888,6 +1996,12 @@ void GameLogic::PlayCardLogicPvP(GameState& state, int cardID, BattleData& bd, i
 	}
 	// Card ID 12: 고속 이동 (버프)
 	else if (cardID == 12) {
+		int EffectType = Effect_Player_ManaUp;
+		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+
+		int EffectType2 = Effect_Player_DeffeceUp;
+		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType2, sizeof(int));
+
 		attacker.mana += 1.0f;
 		attacker.defence += 5;
 
@@ -1898,6 +2012,12 @@ void GameLogic::PlayCardLogicPvP(GameState& state, int cardID, BattleData& bd, i
 	}
 	// Card ID 13: 혈류 (자해 + 공격)
 	else if (cardID == 13) {
+		int EffectType = Effect_Sword;
+		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+
+		int EffectType2 = Effect_Player_HPDown;
+		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType2, sizeof(int));
+
 		// 내 피 깎기
 		attacker.hp -= 10;
 		if (attacker.hp < 0) attacker.hp = 0; 
@@ -1909,6 +2029,9 @@ void GameLogic::PlayCardLogicPvP(GameState& state, int cardID, BattleData& bd, i
 	}
 	// Card ID 14: 정조준 (다음 공격 강화)
 	else if (cardID == 14) {
+		int EffectType = Effect_Player_AttackUp;
+		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+
 		attacker.attack += 20;
 		char ptypeAtk = (attackerIndex * PLAYER_SYNC_STRIDE) + SYNC_ATTACK;
 		RecordSTCPacket(bd, ptypeAtk, &attacker.attack, sizeof(int));
