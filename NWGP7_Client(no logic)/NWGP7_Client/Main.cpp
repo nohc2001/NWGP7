@@ -61,6 +61,7 @@ enum EffectType {
 	Effect_Boom = 2,
 	Effect_Quake = 3,
 	Effect_Boss_attack = 4,
+	Effect_Player_Death = 5,
 };
 
 struct CardData {
@@ -1691,6 +1692,15 @@ void ClientLogic::OnServerEvent(PresentationState& pState, int EffectType)
 		break;
 	case Effect_Draw:
 		pState.droww = true;
+		break;
+
+	case Effect_Player_Death:
+		for (int i = 0; i < 5; i++) {
+			pState.hand[i].on = false;
+		}
+		break;
+
+
 	}
 
 	/*

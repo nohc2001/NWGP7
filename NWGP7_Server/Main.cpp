@@ -20,6 +20,7 @@ enum EffectType {
 	Effect_Boom = 2,
 	Effect_Quake = 3,
 	Effect_Boss_attack = 4,
+	Effect_Player_Death = 5,
 };
 
 enum ClientToServer_ProtocolType {
@@ -447,6 +448,10 @@ thread_local ClientData* clientData;
 
 void PlayerData::Move(float dx, float dy) {
 	ClientData* client = (ClientData*)clientData;
+	if (client->bd->gameState.players[client->ParticipateID].playerdeath) {
+		return;
+	}
+		
 	if (client->bd->gameState.PvEMode) {
 		pos.x += dx;
 		pos.y += dy;
@@ -1006,6 +1011,9 @@ void GameLogic::CheckWinLossConditionsPvE(GameState& state, BattleData& bd)
 			state.players[0].playerdeath = true;
 			char ptype = (i * PLAYER_SYNC_STRIDE) + SYNC_PLAYER_DEATH;
 			RecordSTCPacket(bd, ptype, &state.players[i].playerdeath, sizeof(bool));
+
+			int EffectType = Effect_Player_Death;
+			RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
 			//state.pdeath = true; // 플레이어 죽는 모션 재생
 		}
 	}
@@ -1025,6 +1033,8 @@ void GameLogic::CheckWinLossConditionsPvP(GameState& state, BattleData& bd)
 			char ptype = (i * PLAYER_SYNC_STRIDE) + SYNC_PLAYER_DEATH;
 			RecordSTCPacket(bd, ptype, &p.playerdeath, sizeof(bool));
 
+			int EffectType = Effect_Player_Death;
+			RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
 			//사망 이펙트 전송
 		}
 
@@ -1523,10 +1533,10 @@ void GameLogic::PlayCard(GameState& state, int cardIndex, BattleData& bd, int pl
 		char ptypeMana = (playerIndex * PLAYER_SYNC_STRIDE) + SYNC_MANA;
 		RecordSTCPacket(bd, ptypeMana, &newMana, sizeof(float));
 
-		if (state.PvEMode) {
+		if (state.PvEMode && !state.players[playerIndex].playerdeath) {
 			PlayCardLogic(state, card.id, bd, playerIndex, false);
 		}
-		else {
+		else if(!state.PvEMode && !state.players[playerIndex].playerdeath){
 			PlayCardLogicPvP(state, card.id, bd, playerIndex, targetIndex);
 		}
 
