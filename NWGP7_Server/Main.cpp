@@ -1964,6 +1964,9 @@ void GameLogic::ApplyDamageToPlayer(GameState& state, int damage, int playerinde
 	// »ç¸Á Ã¼Å©
 	if (player.hp <= 0 && !player.playerdeath) {
 		player.playerdeath = true;
+		player.mana = 0.0f;
+		char ptypeMana = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_MANA;
+		RecordSTCPacket(bd, ptypeMana, &player.mana, sizeof(float));
 
 		char ptypeDeath = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_PLAYER_DEATH;
 		RecordSTCPacket(bd, ptypeDeath, &player.playerdeath, sizeof(bool));
