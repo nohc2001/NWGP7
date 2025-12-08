@@ -823,7 +823,7 @@ public:
 	void HandleMouseMove(const GameState& state, PresentationState& pState, int x, int y, HWND hWnd);
 	void HandleLButtonDown(const GameState& state, PresentationState& pState, int x, int y, HWND hWnd);
 	void HandleLButtonUp(const GameState& state, PresentationState& pState, int x, int y, HWND hWnd);
-	void OnServerEvent(PresentationState& pState, int EffectType /*eventPacket*/);
+	void OnServerEvent(PlayerPresentation& playerstate, PresentationState& pState, int EffectType /*eventPacket*/);
 	void PlayCard(int cardindex, int enemyID, short gridX, short gridY);
 };
 
@@ -1138,7 +1138,10 @@ unsigned __stdcall Recv_Thread(void* arg)
 			{
 				int effectType;
 				recv(sock, (char*)&effectType, sizeof(int), MSG_WAITALL);
-				g_Game.m_CLogic.OnServerEvent(g_Game.m_PState, effectType);
+
+				for (int i = 0; i < 3; i++) {
+					g_Game.m_CLogic.OnServerEvent(g_Game.m_PState.players[i], g_Game.m_PState, effectType);
+				}
 				
 			}
 			break;
@@ -1685,7 +1688,7 @@ void ClientLogic::HandleLButtonUp(const GameState& state, PresentationState& pSt
 	}
 }
 
-void ClientLogic::OnServerEvent(PresentationState& pState, int EffectType)
+void ClientLogic::OnServerEvent(PlayerPresentation& playerstate, PresentationState& pState, int EffectType)
 {
 	switch (EffectType)
 	{
@@ -1713,27 +1716,35 @@ void ClientLogic::OnServerEvent(PresentationState& pState, int EffectType)
 		}
 		break;
 	case Effect_Player_HPUp:
-		pState.healenergy = true;
+		playerstate.effect_anim_data.myheal = true;
 		break;
 
 	case Effect_Player_HPDown:
-		pState.dedamge = true;
+		playerstate.effect_anim_data.decresehp = true;
+		break;
+
+	case Effect_Player_AttackUp:
+		playerstate.effect_anim_data.powerUp = true;
+		break;
+
+	case Effect_Player_AttackDown:
+		playerstate.effect_anim_data.powerDown = true;
 		break;
 
 	case Effect_Player_DeffeceUp:
-		pState.defenseup = true;
+		playerstate.effect_anim_data.defUp = true;
 		break;
 
 	case Effect_Player_DeffenceDown:
-		pState.defensedown = true;
+		playerstate.effect_anim_data.defDown = true;
 		break;
 
 	case Effect_Player_ManaUp:
-		pState.healmana = true;
+		playerstate.effect_anim_data.manaUp = true;
 		break;
 
 	case Effect_Player_ManaDown:
-		pState.killmana = true;
+		playerstate.effect_anim_data.manaDown = true;
 		break;
 
 	}
