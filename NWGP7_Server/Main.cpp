@@ -613,7 +613,7 @@ DWORD WINAPI ProcessClient(LPVOID arg)
 		int recv_siz = recv(client_sock, (char*) & CurrOP, sizeof(OP), 0);
 		if (recv_siz > 0) {
 			if (CurrOP.ptype != 2) {
-				clientData->bd->OPQueue.enq(CurrOP);
+				if(clientData->bd != nullptr) clientData->bd->OPQueue.enq(CurrOP);
 			}
 			else {
 				//CTS_PT_Participant;
