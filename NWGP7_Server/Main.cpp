@@ -73,7 +73,8 @@ enum ServerToClient_ProtocolType {
 	// Game Event
 	STC_PT_ThrowCard = 96,
 	STC_PT_Effect_Event = 97,
-	STC_PT_Effect_Pos = 98,
+	STC_PT_Target_Player = 98,
+
 
 	// Game Init
 	STC_PT_InitGame = 99,
@@ -345,6 +346,18 @@ struct MapTile {
 	int item;
 };
 
+struct Bossattackstate {
+	enum Phase {
+		Idle,
+		warning,
+		Attack
+	};
+
+	Phase phase = Idle;
+	float timer = 0.0f;
+	int damage = 0;
+};
+
 struct GameState {
 public:
 	// 게임 화면 상태
@@ -370,6 +383,8 @@ public:
 	MapTile mapData[GRID_SIZE][PVP_WIDTH_GRID_SIZE] = { 0 };  // 0=빈칸, 1=이동가능, 2=보스공격
 
 	int currentFeverType = FEVER_NONE;
+
+	
 };
 
 struct BattleData;
@@ -909,7 +924,7 @@ void GameLogic::StartBattle(GameState& state)
 		state.boss.attackTimer = 0.0f;
 		state.boss.death = false;
 		//state.boss.id = rand() % 9;
-		state.boss.id = 0;
+		state.boss.id = 2;
 		state.boss.nodamageMode = false;
 
 		if (state.boss.id == 0) {
@@ -918,11 +933,11 @@ void GameLogic::StartBattle(GameState& state)
 		}
 		else if (state.boss.id == 1) {
 			state.boss.hp = 1000;
-			state.boss.defence = 15;
+			state.boss.defence = 50;
 		}
 		else if (state.boss.id == 2) {
 			state.boss.hp = 1000;
-			state.boss.defence = 15;
+			state.boss.defence = 70;
 		}
 		else if (state.boss.id == 3) {
 			state.boss.hp = 1000;
@@ -1067,15 +1082,33 @@ void GameLogic::CheckWinLossConditionsPvP(GameState& state, BattleData& bd)
 void GameLogic::AttackWarning(GameState& state, BattleData& bd)
 {
 	MapStateRepare(state, bd);
+	if (state.boss.id == 0) {
+		int count = 3;
+		for (int i = 0; i < count; ++i) {
+			int rx = rand() % GameState::GRID_SIZE;
+			int ry = rand() % GameState::GRID_SIZE;
 
-	int count = 3;
-	for (int i = 0; i < count; ++i) {
-		int rx = rand() % GameState::GRID_SIZE;
-		int ry = rand() % GameState::GRID_SIZE;
-
-		state.mapData[ry][rx].pattern = PATTERN_WARNING;
+			state.mapData[ry][rx].pattern = PATTERN_WARNING;
+		}
+	}
+	else if (state.boss.id == 1) {
+		int count = 5;
+		for (int i = 0; i < count; ++i) {
+			int rx = rand() % GameState::GRID_SIZE;
+			int ry = rand() % GameState::GRID_SIZE;
+			state.mapData[ry][rx].pattern = PATTERN_WARNING;
+		}
+	}
+	else if (state.boss.id == 2) {
+		int count = 10;
+		for (int i = 0; i < count; ++i) {
+			int rx = rand() % GameState::GRID_SIZE;
+			int ry = rand() % GameState::GRID_SIZE;
+			state.mapData[ry][rx].pattern = PATTERN_WARNING;
+		}
 	}
 
+	
 	char ptype = STC_Sync_MapData;
 	RecordSTCPacket(bd, ptype, state.mapData, sizeof(state.mapData));
 }
@@ -1157,7 +1190,7 @@ void GameLogic::ExecuteEnemyAI(GameState& state, float deltaTime, BattleData& bd
 		else if (state.boss.attackState == 1) {
 			state.boss.attackState = 2;
 			state.boss.currentStateDuration = 1.0f; //공격
-			AttackOnRandomGreed(state, 5, bd);
+			AttackOnRandomGreed(state, 20, bd);
 		}
 		else if (state.boss.attackState == 2) {
 			state.boss.attackState = 0;
@@ -1166,26 +1199,45 @@ void GameLogic::ExecuteEnemyAI(GameState& state, float deltaTime, BattleData& bd
 		}
 	}
 	//// 스테이지 2-1 기사 50% 공격 50% 방어
-	//else if (state.boss.id == 1) { // 데미지 10 / 방어 10
-	//	state.boss.patturn = rand() % 2;
-	//	if (state.boss.patturn == 0) {
-	//		AttackOnRandomGreed(state, 30);
-	//	}
-	//	else {
-	//		ApplyDefenseToEnemy(state, 10);
-	//	}
-	//}
+	if (state.boss.id == 1) { // 데미지 0~5
+		if (state.boss.attackState == 0) {
+			state.boss.attackState = 1;
+			state.boss.currentStateDuration = 2.0f; //경고
+
+
+			AttackWarning(state, bd);
+		}
+		else if (state.boss.attackState == 1) {
+			state.boss.attackState = 2;
+			state.boss.currentStateDuration = 1.0f; //공격
+			AttackOnRandomGreed(state, 25, bd);
+		}
+		else if (state.boss.attackState == 2) {
+			state.boss.attackState = 0;
+			state.boss.currentStateDuration = 3.0f; // 복구
+			MapStateRepare(state, bd);
+		}
+	}
 	//// 스테이지 2-2 주술사 50% 공격 50% 자힐
-	//else if (state.boss.id == 2) { // 데미지 10 / 힐 10
-	//	state.boss.patturn = rand() % 2;
-	//	if (state.boss.patturn == 0) {
-	//		HealBoss(state, 30);
-	//		state.boss.healEnergy = 10;
-	//	}
-	//	else {
-	//		AttackOnRandomGreed(state, 30);
-	//	}
-	//}
+	if (state.boss.id == 2) { // 데미지 0~5
+		if (state.boss.attackState == 0) {
+			state.boss.attackState = 1;
+			state.boss.currentStateDuration = 2.0f; //경고
+
+
+			AttackWarning(state, bd);
+		}
+		else if (state.boss.attackState == 1) {
+			state.boss.attackState = 2;
+			state.boss.currentStateDuration = 1.0f; //공격
+			AttackOnRandomGreed(state, 30, bd);
+		}
+		else if (state.boss.attackState == 2) {
+			state.boss.attackState = 0;
+			state.boss.currentStateDuration = 3.0f; // 복구
+			MapStateRepare(state, bd);
+		}
+	}
 	//// 스테이지 3-1 거북
 	//else if (state.boss.id == 3) {
 	//	if (state.boss.bossmode2) { // 빨간 모드
@@ -1888,6 +1940,11 @@ void GameLogic::PlayCardLogicPvP(GameState& state, int cardID, BattleData& bd, i
 
 		char ptypeHP = (attackerIndex * PLAYER_SYNC_STRIDE) + SYNC_HP;
 		RecordSTCPacket(bd, ptypeHP, &attacker.hp, sizeof(int));
+
+		//공격받은 플레이어 인덱스 보내기
+		int targetplayer = targetIndex;
+		RecordSTCPacket(bd, STC_PT_Target_Player, &targetplayer, sizeof(int));
+
 	}
 	// Card ID 1: 심판
 	else if (cardID == 1) {
@@ -1898,6 +1955,10 @@ void GameLogic::PlayCardLogicPvP(GameState& state, int cardID, BattleData& bd, i
 		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType2, sizeof(int));
 
 		if (isValidTarget) ApplyDamageToPlayer(state, 90 + extraDamage, targetIndex, bd);
+
+		//공격받은 플레이어 인덱스 보내기
+		int targetplayer = targetIndex;
+		RecordSTCPacket(bd, STC_PT_Target_Player, &targetplayer, sizeof(int));
 	}
 	// Card ID 2: 강타
 	else if (cardID == 2) {
@@ -1905,6 +1966,10 @@ void GameLogic::PlayCardLogicPvP(GameState& state, int cardID, BattleData& bd, i
 		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
 
 		if (isValidTarget) ApplyDamageToPlayer(state, 60 + extraDamage, targetIndex, bd);
+
+		//공격받은 플레이어 인덱스 보내기
+		int targetplayer = targetIndex;
+		RecordSTCPacket(bd, STC_PT_Target_Player, &targetplayer, sizeof(int));
 	}
 	// Card ID 3: 자세잡기 (버프)
 	else if (cardID == 3) {
@@ -1935,6 +2000,10 @@ void GameLogic::PlayCardLogicPvP(GameState& state, int cardID, BattleData& bd, i
 		attacker.defence += 10;
 		char ptypeDef = (attackerIndex * PLAYER_SYNC_STRIDE) + SYNC_DEFFENCE;
 		RecordSTCPacket(bd, ptypeDef, &attacker.defence, sizeof(int));
+
+		//공격받은 플레이어 인덱스 보내기
+		int targetplayer = targetIndex;
+		RecordSTCPacket(bd, STC_PT_Target_Player, &targetplayer, sizeof(int));
 	}
 	// Card ID 5: 대검휘두르기
 	else if (cardID == 5) {
@@ -1942,6 +2011,10 @@ void GameLogic::PlayCardLogicPvP(GameState& state, int cardID, BattleData& bd, i
 		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
 
 		if (isValidTarget) ApplyDamageToPlayer(state, 50 + extraDamage, targetIndex, bd);
+
+		//공격받은 플레이어 인덱스 보내기
+		int targetplayer = targetIndex;
+		RecordSTCPacket(bd, STC_PT_Target_Player, &targetplayer, sizeof(int));
 	}
 	// Card ID 6: 바리게이트 (버프)
 	else if (cardID == 6) {
@@ -1955,6 +2028,10 @@ void GameLogic::PlayCardLogicPvP(GameState& state, int cardID, BattleData& bd, i
 
 		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
 		if (isValidTarget) ApplyDamageToPlayer(state, attacker.defence + extraDamage, targetIndex, bd);
+
+		//공격받은 플레이어 인덱스 보내기
+		int targetplayer = targetIndex;
+		RecordSTCPacket(bd, STC_PT_Target_Player, &targetplayer, sizeof(int));
 	}
 	// Card ID 8: 굳건한 태세 (무적)
 	else if (cardID == 8) {
@@ -1981,6 +2058,10 @@ void GameLogic::PlayCardLogicPvP(GameState& state, int cardID, BattleData& bd, i
 		RecordSTCPacket(bd, ptypeCut, &attacker.cutting, sizeof(bool));
 
 		if (isValidTarget) ApplyDamageToPlayer(state, 40 + extraDamage, targetIndex, bd);
+
+		//공격받은 플레이어 인덱스 보내기
+		int targetplayer = targetIndex;
+		RecordSTCPacket(bd, STC_PT_Target_Player, &targetplayer, sizeof(int));
 	}
 	// Card ID 11: 일격 (캐스팅 후 다음 턴 공격)
 	else if (cardID == 11) {
@@ -2000,6 +2081,10 @@ void GameLogic::PlayCardLogicPvP(GameState& state, int cardID, BattleData& bd, i
 		RecordSTCPacket(bd, ptypeTimer, &attacker.onePunchCastTimer, sizeof(float));
 		char ptypeDmg = (attackerIndex * PLAYER_SYNC_STRIDE) + SYNC_ONEPUNCH_DAMAGE;
 		RecordSTCPacket(bd, ptypeDmg, &attacker.onePunchStoredDamage, sizeof(int));
+
+		//공격받은 플레이어 인덱스 보내기
+		int targetplayer = targetIndex;
+		RecordSTCPacket(bd, STC_PT_Target_Player, &targetplayer, sizeof(int));
 	}
 	// Card ID 12: 고속 이동 (버프)
 	else if (cardID == 12) {
@@ -2033,6 +2118,10 @@ void GameLogic::PlayCardLogicPvP(GameState& state, int cardID, BattleData& bd, i
 
 		// 적 공격
 		if (isValidTarget) ApplyDamageToPlayer(state, 60 + extraDamage, targetIndex, bd);
+
+		//공격받은 플레이어 인덱스 보내기
+		int targetplayer = targetIndex;
+		RecordSTCPacket(bd, STC_PT_Target_Player, &targetplayer, sizeof(int));
 	}
 	// Card ID 14: 정조준 (다음 공격 강화)
 	else if (cardID == 14) {

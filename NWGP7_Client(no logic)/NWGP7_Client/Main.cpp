@@ -316,6 +316,7 @@ public:
 	bool endon = false; // 턴 종료 버튼 활성화
 	bool start = false; // 시작 버튼 활성화
 	bool end = false; // 종료 버튼
+	int targetIndex; // 공격받은 타겟 인덱스
 
 	PlayerPresentation players[3];
 
@@ -906,7 +907,7 @@ enum ServerToClient_ProtocolType {
 	// Game Event
 	STC_PT_ThrowCard = 96,
 	STC_PT_Effect_Event = 97,
-	STC_PT_Effect_Pos = 98,
+	STC_PT_Target_Player = 98,
 
 	// Game Init
 	STC_PT_InitGame = 99,
@@ -1183,10 +1184,22 @@ unsigned __stdcall Recv_Thread(void* arg)
 				
 			}
 			break;
+
+			case STC_PT_Target_Player:
+				//타겟 플레이어 인덱스 저장
+			{
+				PresentationState& presentPlayer = g_Game.m_PState;
+				int recvedtargetIndex;
+				recv(sock, (char*)&recvedtargetIndex, sizeof(int), MSG_WAITALL);
+				presentPlayer.targetIndex = recvedtargetIndex;
+
+				break;
+			}
 			case STC_Sync_MapData: // 116번
+			{
 				recv(sock, (char*)g_Game.m_State.mapData, sizeof(g_Game.m_State.mapData), MSG_WAITALL);
 				break;
-
+			}
 			case STC_Sync_Fever: // 120번
 			{
 				int feverType;
@@ -3037,24 +3050,33 @@ void Renderer::DrawCharacters(HDC hdc, HDC imgDC, const GameState& state, const 
 void Renderer::DrawEffects(HDC hdc, HDC imgDC, const GameState& state, const PresentationState& pState, const AssetManager& assets) {
 	HBITMAP hOldImg = NULL;
 	// 폭발 이펙트
-	if (pState.boomswitch && !state.boss.death) {
-		hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitBoom[pState.boomcount]);
-		TransparentBlt(hdc, pState.boss.x, pState.boss.y, 150, 150, imgDC, 0, 0, assets.BoomWidth, assets.BoomHeight, RGB(255, 255, 255));
+	if (state.PvEMode) {
+		if (pState.boomswitch && !state.boss.death) {
+			hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitBoom[pState.boomcount]);
+			TransparentBlt(hdc, pState.boss.x, pState.boss.y, 150, 150, imgDC, 0, 0, assets.BoomWidth, assets.BoomHeight, RGB(255, 255, 255));
+		}
+		// 정조준 이펙트
+		if (pState.Sniper) {
+			hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitSniper[pState.snipercount]);
+			TransparentBlt(hdc, pState.boss.x - 50, pState.boss.y - 100, 200, 200, imgDC, 0, 0, assets.sniperWidth, assets.sniperHeight, RGB(255, 255, 255));
+		}
+		// 일격 이펙트p
+		if (pState.One) {
+			hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitOne[pState.Onecount]);
+			TransparentBlt(hdc, pState.boss.x - 300, pState.boss.y - 100, 600, 200, imgDC, 0, 0, assets.OneWidth, assets.OneHeight, RGB(255, 255, 255));
+		}
+		// 기본 공격 이펙트
+		if (pState.sword) {
+			hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitsword[pState.swordcount]);
+			TransparentBlt(hdc, pState.boss.x - 200, pState.boss.y - 180, 500, 500, imgDC, 0, 0, assets.swordWidth, assets.swordHeight, RGB(255, 255, 255));
+		}
 	}
-	// 정조준 이펙트
-	if (pState.Sniper) {
-		hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitSniper[pState.snipercount]);
-		TransparentBlt(hdc, pState.boss.x - 50, pState.boss.y - 100, 200, 200, imgDC, 0, 0, assets.sniperWidth, assets.sniperHeight, RGB(255, 255, 255));
-	}
-	// 일격 이펙트p
-	if (pState.One) {
-		hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitOne[pState.Onecount]);
-		TransparentBlt(hdc, pState.boss.x - 300, pState.boss.y - 100, 600, 200, imgDC, 0, 0, assets.OneWidth, assets.OneHeight, RGB(255, 255, 255));
-	}
-	// 기본 공격 이펙트
-	if (pState.sword) {
-		hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitsword[pState.swordcount]);
-		TransparentBlt(hdc, pState.boss.x - 200, pState.boss.y - 180, 500, 500, imgDC, 0, 0, assets.swordWidth, assets.swordHeight, RGB(255, 255, 255));
+	else {
+		// 기본 공격 이펙트
+		if (pState.sword) {
+			hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitsword[pState.swordcount]);
+			TransparentBlt(hdc, pState.players[pState.targetIndex].x - 200, pState.players[pState.targetIndex].y - 180, 500, 500, imgDC, 0, 0, assets.swordWidth, assets.swordHeight, RGB(255, 255, 255));
+		}
 	}
 
 	//$Chang
