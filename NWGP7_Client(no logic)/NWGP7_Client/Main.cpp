@@ -417,6 +417,8 @@ public:
 	void CardUpdate(float deltaTime);
 	void RenderThrowingCards(HDC hdc) const;
 	void CardThrow(ThrowCard tc);
+
+	char extra[24];
 };
 
 template<size_t N>
