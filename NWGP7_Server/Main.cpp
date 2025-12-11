@@ -1137,8 +1137,8 @@ void GameLogic::CheckWinLossConditionsPvE(GameState& state, BattleData& bd)
 	}
 
 	for (int i = 0; i < GameState::playerCount; ++i) {
-		if (state.players[0].hp <= 0 && state.players[0].playerdeath == false) {
-			state.players[0].playerdeath = true;
+		if (state.players[i].hp <= 0 && state.players[i].playerdeath == false) {
+			state.players[i].playerdeath = true;
 			char ptype = (i * PLAYER_SYNC_STRIDE) + SYNC_PLAYER_DEATH;
 			RecordSTCPacket(bd, ptype, &state.players[i].playerdeath, sizeof(bool));
 
@@ -1176,6 +1176,8 @@ void GameLogic::CheckWinLossConditionsPvP(GameState& state, BattleData& bd)
 
 	if (survivorCount <= 1 && !state.GameClear) {
 		state.GameClear = true;
+		int EffectType = Effect_Boom;
+		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
 
 		printf("Game Over! Winner is Player %d\n", lastSurvivorIndex + 1);
 	}
