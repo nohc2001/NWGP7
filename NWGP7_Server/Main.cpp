@@ -1127,8 +1127,6 @@ void GameLogic::UpdatePvE(GameState& state, float deltaTime, BattleData& bd)
 
 			char ptype_mana = (i * PLAYER_SYNC_STRIDE) + SYNC_MANA;
 			RecordSTCPacket(bd, ptype_mana, &state.players[i].mana, sizeof(int));
-
-
 		}
 	}
 

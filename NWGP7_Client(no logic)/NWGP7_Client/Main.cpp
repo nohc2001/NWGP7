@@ -1010,39 +1010,39 @@ void participateInMatch(bool ispvp) {
 	}
 }
 
-unsigned __stdcall Send_Thread(void* arg)
-{
-	SOCKET sock = (SOCKET)arg;
-	std::vector<char> packetToSend;
-	bool bHasPacket = false;
-
-	while (true)
-	{
-		bHasPacket = false;
-		WaitForSingleObject(g_hMutexSendQueue, INFINITE);
-
-		if (!g_SendQueue.empty()) {
-			packetToSend = g_SendQueue.front();
-			g_SendQueue.pop();
-			bHasPacket = true;
-		}
-
-		ReleaseMutex(g_hMutexSendQueue);
-
-		if (bHasPacket) {
-			int retval = send(sock, packetToSend.data(), packetToSend.size(), 0); // 임시
-			// 프로토콜에 따른 값 보내기
-
-			if (retval == SOCKET_ERROR) {
-				break;
-			}
-		}
-		else {
-			Sleep(10); // 스레드 휴먼 : 큐 비어있을때 CPU 점유 방지
-		}
-	}
-	return 0;
-}
+//unsigned __stdcall Send_Thread(void* arg)
+//{
+//	SOCKET sock = (SOCKET)arg;
+//	std::vector<char> packetToSend;
+//	bool bHasPacket = false;
+//
+//	while (true)
+//	{
+//		bHasPacket = false;
+//		WaitForSingleObject(g_hMutexSendQueue, INFINITE);
+//
+//		if (!g_SendQueue.empty()) {
+//			packetToSend = g_SendQueue.front();
+//			g_SendQueue.pop();
+//			bHasPacket = true;
+//		}
+//
+//		ReleaseMutex(g_hMutexSendQueue);
+//
+//		if (bHasPacket) {
+//			int retval = send(sock, packetToSend.data(), packetToSend.size(), 0); // 임시
+//			// 프로토콜에 따른 값 보내기
+//
+//			if (retval == SOCKET_ERROR) {
+//				break;
+//			}
+//		}
+//		else {
+//			Sleep(10); // 스레드 휴먼 : 큐 비어있을때 CPU 점유 방지
+//		}
+//	}
+//	return 0;
+//}
 
 unsigned __stdcall Recv_Thread(void* arg)
 {
@@ -1522,7 +1522,6 @@ void Game::UpdateStateFromServer(const GameState& newState)
 	m_State.GameClear = newState.GameClear;
 	m_State.tempstop = newState.tempstop;
 	m_State.dontattackcard = newState.dontattackcard;
-
 }
 
 bool ClientLogic::ConnectToServerAndStart(HWND hWnd)
@@ -1561,10 +1560,10 @@ bool ClientLogic::ConnectToServerAndStart(HWND hWnd)
 
 	unsigned int sendThreadID, recvThreadID;
 	// Send_Thread
-	g_hSendThread = (HANDLE)_beginthreadex(NULL, 0, Send_Thread, (void*)sock, 0, &sendThreadID);
+	//g_hSendThread = (HANDLE)_beginthreadex(NULL, 0, Send_Thread, (void*)sock, 0, &sendThreadID);
 	// Recv_Thread
 	g_hRecvThread = (HANDLE)_beginthreadex(NULL, 0, Recv_Thread, (void*)sock, 0, &recvThreadID);
-	if (g_hSendThread == 0 || g_hRecvThread == 0) {
+	if (/*g_hSendThread == 0 || */g_hRecvThread == 0) {
 		MessageBox(hWnd, L"스레드 생성에 실패했습니다.", L"오류", MB_OK);
 		return 0;
 	}
