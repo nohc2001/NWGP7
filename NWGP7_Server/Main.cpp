@@ -93,6 +93,9 @@ enum ServerToClient_ProtocolType {
 
 	// Fever Time
 	STC_Sync_Fever = 120,
+
+	// Time Limit
+	STC_Sync_TimeLimit = 121,
 };
 
 struct STC_OP {
@@ -399,6 +402,8 @@ public:
 	bool PvEMode = false;  // true 일떄 레이드 false일때 pvp
 
 	bool GameClear = false;
+
+	float TimeLimit = 100.0f; // 제한 시간 
 
 	// 전투 상태
 	static constexpr int playerCount = 3;
@@ -1104,6 +1109,15 @@ void GameLogic::Update(GameState& state, BattleData& bd)
 
 void GameLogic::UpdatePvE(GameState& state, float deltaTime, BattleData& bd)
 {
+	state.TimeLimit -= deltaTime;
+	RecordSTCPacket(bd, STC_Sync_TimeLimit, &state.TimeLimit, sizeof(float));
+
+	if (state.TimeLimit <= 0.0f) {
+		state.GameClear = true;
+		int EffectType = Effect_Boom;
+		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+	}
+
 	CheckWinLossConditionsPvE(state, bd);
 	UpdateBattle_RealTime(state, deltaTime, bd);
 }

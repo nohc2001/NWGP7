@@ -395,6 +395,7 @@ public:
 
 	bool GameClear = false;
 
+	float TimeLimit = 0.0f; // 전투 시간
 	// 전투 상태
 	static constexpr int playerCount = 3;
 	PlayerData players[playerCount]; // players data
@@ -930,6 +931,9 @@ enum ServerToClient_ProtocolType {
 
 	// Fever Time
 	STC_Sync_Fever = 120,
+
+	//Time Limit
+	STC_Sync_TimeLimit = 121,
 };
 
 struct STC_OP {
@@ -1245,8 +1249,16 @@ unsigned __stdcall Recv_Thread(void* arg)
 				g_Game.m_PState.CardThrow(tc);
 				break;
 			}
+
+			case STC_Sync_TimeLimit:
+			{
+				recv(sock, (char*)&g_Game.m_State.TimeLimit, sizeof(g_Game.m_State.TimeLimit), MSG_WAITALL);
+
+				break;
+
 			}
 		}
+			}
 
 		ReleaseMutex(g_hMutexGameState);
 
@@ -1255,7 +1267,7 @@ unsigned __stdcall Recv_Thread(void* arg)
 	return 0;
 }
 
-char* SERVERIP = (char*)"183.101.112.102";
+char* SERVERIP = (char*)"127.0.0.1";
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdParam, int nCmdShow)
 {
@@ -2535,8 +2547,40 @@ void Renderer::DrawBackground(HDC hdc, HDC imgDC, const GameState& state, const 
 	else {
 		hOldImg = (HBITMAP)SelectObject(imgDC, assets.hBitTemp2);
 		StretchBlt(hdc, pState.backgroundX, pState.backgroundY, 1185, 765, imgDC, 0, 0, assets.tempWidth2, assets.tempHeight2, SRCCOPY);
+
 	}
 	SelectObject(imgDC, hOldImg);
+
+	// 1) 남은 시간 (초)로 변환
+	int timeLeft = (int)state.TimeLimit;        // 소수점 버리고 싶으면 이렇게
+	// 혹은 반올림: int timeLeft = (int)(state.TimeLimit + 0.5f);
+
+	WCHAR buf[64];
+	swprintf(buf, 64, L"Time: %d", timeLeft);
+
+	// 2) 폰트 만들고 선택
+	HFONT hFont = CreateFont(
+		40, 0, 0, 0,
+		FW_BOLD, FALSE, FALSE, FALSE,
+		ANSI_CHARSET,
+		OUT_DEFAULT_PRECIS,
+		CLIP_DEFAULT_PRECIS,
+		DEFAULT_QUALITY,
+		DEFAULT_PITCH | FF_SWISS,
+		L"Arial"
+	);
+	HFONT hOldFont2 = (HFONT)SelectObject(hdc, hFont);
+
+	SetBkMode(hdc, TRANSPARENT);
+	// 필요하면 색도 바꾸기
+	// SetTextColor(hdc, RGB(255, 255, 255));
+
+	// 3) 화면 오른쪽 위 같은 데 찍기 (좌표는 알아서 조정)
+	TextOut(hdc, 900, 20, buf, lstrlen(buf));
+
+	// 4) 폰트 원상복구
+	SelectObject(hdc, hOldFont2);
+	DeleteObject(hFont);
 }
 
 void Renderer::DrawStartScreenUI(HDC hdc, HDC imgDC, const PresentationState& pState, const AssetManager& assets) {
