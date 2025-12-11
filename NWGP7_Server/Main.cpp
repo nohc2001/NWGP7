@@ -951,6 +951,8 @@ int main(int argc, char* argv[])
 	SOCKET client_sock;
 	struct sockaddr_in clientaddr;
 	int addrlen;
+
+	printf("서버가 시작되었습니다. 현재 새로운 클라이언트를 기다리는 중입니다.");
 	
 	while (1) {
 		// 새로 접속하는 클라이언트 처리
@@ -2318,13 +2320,13 @@ void GameLogic::CardUpdate(BattleData& bd, float deltaTime)
 
 							break;
 						}
-						else {
-							// 카드 효과를 발동한다.
-							//PlayCard(bd.gameState, tc.cardID, bd, tc.ownerID, i, nullptr);
-							PlayCardLogicPvP(state, tc.cardID, bd, tc.ownerID, i);
-							EraseArr[up] = iter;
-							up += 1;
-						}
+						//else {
+						//	// 카드 효과를 발동한다.
+						//	//PlayCard(bd.gameState, tc.cardID, bd, tc.ownerID, i, nullptr);
+						//	PlayCardLogicPvP(state, tc.cardID, bd, tc.ownerID, i);
+						//	EraseArr[up] = iter;
+						//	up += 1;
+						//}
 					}
 				}
 			}
