@@ -403,7 +403,7 @@ public:
 
 	bool GameClear = false;
 
-	float TimeLimit = 100.0f; // 제한 시간 
+	float TimeLimit = 60.0f; // 제한 시간 
 
 	// 전투 상태
 	static constexpr int playerCount = 3;
@@ -1115,9 +1115,21 @@ void GameLogic::UpdatePvE(GameState& state, float deltaTime, BattleData& bd)
 	RecordSTCPacket(bd, STC_Sync_TimeLimit, &state.TimeLimit, sizeof(float));
 
 	if (state.TimeLimit <= 0.0f) {
-		state.GameClear = true;
-		int EffectType = Effect_Boom;
-		RecordSTCPacket(bd, STC_PT_Effect_Event, &EffectType, sizeof(int));
+		for (int i = 0; i < GameState::playerCount; ++i) {
+			state.players[i].playerdeath = true;
+			state.players[i].hp = 0;
+			state.players[i].mana = 0;
+			char ptype = (i * PLAYER_SYNC_STRIDE) + SYNC_PLAYER_DEATH;
+			RecordSTCPacket(bd, ptype, &state.players[i].playerdeath, sizeof(bool));
+
+			char ptype_hp = (i * PLAYER_SYNC_STRIDE) + SYNC_HP;
+			RecordSTCPacket(bd, ptype_hp, &state.players[i].hp, sizeof(int));
+
+			char ptype_mana = (i * PLAYER_SYNC_STRIDE) + SYNC_MANA;
+			RecordSTCPacket(bd, ptype_mana, &state.players[i].mana, sizeof(int));
+
+
+		}
 	}
 
 	CheckWinLossConditionsPvE(state, bd);
