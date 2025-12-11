@@ -276,7 +276,7 @@ struct ThrowCard {
 	//	}
 	//	return p;
 	//}
-
+	int ownerID;
 	int cardID = 0;
 
 	void Update(float deltaTime) {
@@ -385,6 +385,9 @@ enum FeverType {
 	FEVER_ATTACK_UP = 3,  // 광폭화 (전체 공격력 +30)
 };
 
+// ThrowCard
+list<ThrowCard> throwCardList;
+
 struct GameState {
 public:
 	// 게임 화면 상태
@@ -410,6 +413,9 @@ public:
 	MapTile mapData[GRID_SIZE][PVP_WIDTH_GRID_SIZE] = { 0 };  // 0=빈칸, 1=이동가능, 2=보스공격
 
 	int currentFeverType = FEVER_NONE;
+	void CardUpdate(float deltaTime);
+	void RenderThrowingCards(HDC hdc) const;
+	void CardThrow(ThrowCard tc);
 };
 
 template<size_t N>
@@ -1224,8 +1230,22 @@ unsigned __stdcall Recv_Thread(void* arg)
 			case STC_Sync_Boss_Awakening:
 				recv(sock, (char*)&g_Game.m_State.boss.bossAwakening, sizeof(g_Game.m_State.boss.bossAwakening), MSG_WAITALL);
 				break;
+			case STC_PT_ThrowCard:
+			{
+				ThrowCard tc;
+				recv(sock, (char*)&tc, sizeof(ThrowCard), MSG_WAITALL);
+				if (tc.start_p.x > tc.playerPos[2]) {
+					tc.start_p.x = (tc.start_p.x * MapMoveMargin) + MapCenterX;
+					tc.start_p.y = -1*(tc.start_p.y * MapMoveMargin) + MapCenterY;
+				}
+				if (tc.end_p.x > tc.playerPos[2]) {
+					tc.end_p.x = (tc.end_p.x * MapMoveMargin) + MapCenterX;
+					tc.end_p.y = -1*(tc.end_p.y * MapMoveMargin) + MapCenterY;
+				}
+				g_Game.m_PState.CardThrow(tc);
+				break;
 			}
-
+			}
 		}
 
 		ReleaseMutex(g_hMutexGameState);
@@ -1697,6 +1717,7 @@ void ClientLogic::HandleLButtonUp(const GameState& state, PresentationState& pSt
 		}
 	}
 
+//<<<<<<< Updated upstream
 	if (draggedCardIndex == -1) return;
 
 	if (draggedCardIndex == 0) { pState.hand[0].x = 300; pState.hand[0].y = 700; }
@@ -1730,11 +1751,19 @@ void ClientLogic::HandleLButtonUp(const GameState& state, PresentationState& pSt
 			{
 				targetID = i; 
 				break;
+				//pState.hand[i].drag = false;
 			}
 		}
 		if (targetID != -1) {
+			//PlayCard(draggedCardIndex, targetID, 0, 0);
 
-			PlayCard(draggedCardIndex, targetID, 0, 0);
+			int xindex = (x - MapCenterX) / MapMoveMargin;
+			int yindex = (y - MapCenterY) / MapMoveMargin;
+			int startp = ThrowCard::playerPos[g_myPlayerIndex];
+			int endp = ThrowCard::playerPos[targetID];
+			Pos playerpos = Pos(state.players[g_myPlayerIndex].pos.x, state.players[g_myPlayerIndex].pos.y);
+			PlayCard(draggedCardIndex, targetID, xindex, yindex);
+			//pState.CardThrow(ThrowCard(Pos(startp, startp), Pos(endp, endp), 2.0f));
 		}
 	}
 }
@@ -2327,12 +2356,24 @@ void PresentationState::InitializeBattleVisuals(int bossID)
 
 void PresentationState::CardUpdate(float deltaTime, const GameState& gameState)
 {
+	list<ThrowCard>::iterator EraseArr[128] = {};
+	int up = 0;
+	for (list<ThrowCard>::iterator iter = throwCardList.begin(); iter != throwCardList.end(); ++iter) {
+		ThrowCard& tc = *iter;
+		tc.Update(deltaTime);
+		if (tc.flowTime > tc.maxTime) {
+			EraseArr[up] = iter;
+			up += 1;
+		}
+	}
+	for (int i = 0; i < up; ++i) {
+		throwCardList.erase(EraseArr[i]);
+	}
+
 	//constexpr float ParingEpsilon = 0.1f;
 	//constexpr float CardThrowingTimeDecreaseRate = 0.95f;
-
 	//list<ThrowCard>::iterator EraseArr[128] = {};
 	//int up = 0;
-
 	//for (list<ThrowCard>::iterator iter = throwCardList.begin(); iter != throwCardList.end(); ++iter) {
 	//	ThrowCard& tc = *iter;
 	//	tc.Update(deltaTime);
@@ -2370,48 +2411,70 @@ void PresentationState::CardUpdate(float deltaTime, const GameState& gameState)
 	//			if (tc.end_p.x == players[i].x && tc.end_p.y == players[i].y) {
 	//				g_Game.m_Logic.ApplyDamageToPlayer(*this, 10, 0); // 데미지 10
 	//			}
-
 	//			if (tc.end_p.x == ThrowCard::playerPos[i]) {
 	//				g_Game.m_Logic.PlayCardLogic(*this, tc.cardID, i, true);
 	//			}
 	//		}
-
 	//		if (tc.end_p.x == ThrowCard::monsterPos) {
 	//			g_Game.m_Logic.PlayCardLogic(*this, tc.cardID, 0);
 	//		}
-
 	//		//push
 	//		EraseArr[up] = iter;
 	//		up += 1;
 	//	}
 	//}
-
 	//for (int i = 0; i < up; ++i) {
 	//	throwCardList.erase(EraseArr[i]);
 	//}
 	//up = 0;
-
 	//for (int i = 0; i < 3; ++i) {
 	//	players[i].ParingMoment = false;
 	//}
 }
 
+void GameState::CardUpdate(float deltaTime)
+{
+	list<ThrowCard>::iterator EraseArr[128] = {};
+	int up = 0;
+	for (list<ThrowCard>::iterator iter = throwCardList.begin(); iter != throwCardList.end(); ++iter) {
+		ThrowCard& tc = *iter;
+		tc.Update(deltaTime);
+		if (tc.flowTime > tc.maxTime) {
+			EraseArr[up] = iter;
+			up += 1;
+		}
+	}
+	for (int i = 0; i < up; ++i) {
+		throwCardList.erase(EraseArr[i]);
+	}
+}
+
+HPEN hRedPen = CreatePen(PS_SOLID, 3, RGB(255, 0, 0));
+HBRUSH hBlueBrush = CreateSolidBrush(RGB(0, 0, 255));
+
 void PresentationState::RenderThrowingCards(HDC hdc) const
 {
-	/*for (auto iter = throwCardList.begin(); iter != throwCardList.end(); ++iter) {
+	for (auto iter = throwCardList.begin(); iter != throwCardList.end(); ++iter) {
 		Pos startp, endp;
 
 		startp = iter->start_p;
 		if (iter->start_p.x == iter->playerPos[0]) startp = Pos(players[0].x, players[0].y);
-		if (iter->start_p.x == iter->playerPos[1]) startp = Pos(players[1].x, players[1].y);
-		if (iter->start_p.x == iter->playerPos[2]) startp = Pos(players[2].x, players[2].y);
-		if (iter->start_p.x == iter->monsterPos) startp = Pos(boss.x, boss.y);
+		else if (iter->start_p.x == iter->playerPos[1]) startp = Pos(players[1].x, players[1].y);
+		else if (iter->start_p.x == iter->playerPos[2]) startp = Pos(players[2].x, players[2].y);
+		else if (iter->start_p.x == iter->monsterPos) startp = Pos(boss.x, boss.y);
 
 		endp = iter->end_p;
 		if (iter->end_p.x == iter->playerPos[0]) endp = Pos(players[0].x, players[0].y);
-		if (iter->end_p.x == iter->playerPos[1]) endp = Pos(players[1].x, players[1].y);
-		if (iter->end_p.x == iter->playerPos[2]) endp = Pos(players[2].x, players[2].y);
-		if (iter->end_p.x == iter->monsterPos) endp = Pos(boss.x, boss.y);
+		else if (iter->end_p.x == iter->playerPos[1]) endp = Pos(players[1].x, players[1].y);
+		else if (iter->end_p.x == iter->playerPos[2]) endp = Pos(players[2].x, players[2].y);
+		else if (iter->end_p.x == iter->monsterPos) endp = Pos(boss.x, boss.y);
+
+		constexpr int WShift = 50;
+		constexpr int HShift = 50;
+		startp.x += WShift;
+		startp.y += HShift;
+		endp.x += WShift;
+		endp.y += HShift;
 
 		float rate = (iter->flowTime / iter->maxTime);
 
@@ -2423,7 +2486,7 @@ void PresentationState::RenderThrowingCards(HDC hdc) const
 		RECT cellRect;
 		SetRect(&cellRect, (int)rp.x - margin, (int)rp.y - margin, (int)rp.x + margin, (int)rp.y + margin);
 		FillRect(hdc, &cellRect, hBlueBrush);
-	}*/
+	}
 }
 
 void PresentationState::CardThrow(ThrowCard tc)
@@ -2493,9 +2556,6 @@ void Renderer::DrawStartScreenUI(HDC hdc, HDC imgDC, const PresentationState& pS
 	SelectObject(imgDC, hOldImg);
 }
 
-HPEN hRedPen = CreatePen(PS_SOLID, 3, RGB(255, 0, 0));
-HBRUSH hBlueBrush = CreateSolidBrush(RGB(0, 0, 255));
-
 void Renderer::DrawPvPScreen(HDC hdc, HDC imgDC, const GameState& state, const PresentationState& pState, const AssetManager& assets) {
 	HBITMAP hOldImg;
 
@@ -2540,6 +2600,8 @@ void Renderer::DrawPvPScreen(HDC hdc, HDC imgDC, const GameState& state, const P
 		MoveToEx(hdc, PVPMapCenterX + lineOffset + offsetX, PVPMapCenterY - (5.0f / 2.0f) * MapMoveMargin + offsetY, NULL);
 		LineTo(hdc, PVPMapCenterX + lineOffset + offsetX, PVPMapCenterY + (5.0f / 2.0f) * MapMoveMargin + offsetY);
 	}
+
+	pState.RenderThrowingCards(hdc);
 
 	DrawHand(hdc, imgDC, state, pState, assets);
 	DrawCharacters(hdc, imgDC, state, pState, assets);
@@ -2644,7 +2706,7 @@ void Renderer::DrawPVEScreen(HDC hdc, HDC imgDC, const GameState& state, const P
 	SelectObject(hdc, hOldPen);
 	DeleteObject(hRedPen);
 
-	pState.RenderThrowingCards(hdc);
+	
 
 	DrawHand(hdc, imgDC, state, pState, assets);
 	DrawCharacters(hdc, imgDC, state, pState, assets);

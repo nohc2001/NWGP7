@@ -8,6 +8,8 @@
 #include <mutex>
 #include <queue>
 #include <atomic>
+#include <list>
+
 using namespace std;
 #pragma comment(lib, "ws2_32.lib")
 
@@ -346,6 +348,7 @@ struct MapTile {
 	int item;
 };
 
+//<<<<<<< Updated upstream
 struct Bossattackstate {
 	enum Phase {
 		Idle,
@@ -356,6 +359,38 @@ struct Bossattackstate {
 	Phase phase = Idle;
 	float timer = 0.0f;
 	int damage = 0;
+};
+
+struct ThrowCard {
+	static constexpr int monsterPos = -2147483648;
+	static constexpr int playerPos[3] = { -2147483647, -2147483646, -2147483645 };
+	Pos start_p; // -max, -max : monster position.
+	float maxTime;
+	float flowTime;
+	Pos end_p; // -max, -max : monster position.
+	int ownerID; // owner player ID
+	int cardID = 0;
+
+	void Update(float deltaTime) {
+		flowTime += deltaTime;
+	}
+
+	ThrowCard() {
+
+	}
+
+	ThrowCard(Pos sp, Pos ep, float maxtime, int owner) :
+		start_p{ sp }, end_p{ ep }, maxTime{ maxtime }, flowTime{ 0 }, ownerID{owner}
+	{
+	}
+
+	static ThrowCard CreateMonsterToPlayer_ThrowCard(PlayerData& p, float maxTime);
+
+	static ThrowCard CreatePlayerToMonster_ThrowCard(PlayerData& p, float maxTime);
+
+	static ThrowCard CreatePlayerToPlayer_ThrowCard(PlayerData& p1, PlayerData& p2, float maxTime);
+
+	static ThrowCard CreateFollowCard(Pos startp, int fpos, float maxTime);
 };
 
 struct GameState {
@@ -384,7 +419,8 @@ public:
 
 	int currentFeverType = FEVER_NONE;
 
-	
+	// ThrowCard
+	list<ThrowCard> throwCardList;
 };
 
 struct BattleData;
@@ -411,9 +447,18 @@ public:
 	void ExecuteEnemyAI(GameState& state, float deltaTime, BattleData& bd);
 	void UpdateBuffsAndTimers(GameState& state, float deltaTime);
 
-	void PlayCard(GameState& state, int cardIndex, BattleData& bd, int playerIndex = 0, int targetIndex = -1); // 카드 사용
+//<<<<<<< Updated upstream
+	void PlayCard(GameState& state, int cardIndex, BattleData& bd, int playerIndex = 0, int targetIndex = -1, ThrowCard* Throw_Card = nullptr); // 카드 사용
+	// Throw_Card == nullptr -> 던지지 않고 사용
+	// else ThrowCard -> 던질 카드
+//=======
+	//void PlayCard(GameState& state, int cardIndex, BattleData& bd, int playerIndex = 0, bool isThrow = false); // 카드 사용
+//>>>>>>> Stashed changes
 	void PlayCardLogic(GameState& state, int cardID, BattleData& bd, int playerindex = 0, bool usedByMonster = false); // 카드 사용
 	void PlayCardLogicPvP(GameState& state, int cardID, BattleData& bd, int attackerIndex, int targetIndex);
+
+	void CardUpdate(BattleData& bd, float deltaTime);
+	void CardThrow(BattleData& bd, ThrowCard tc);
 
 	void CardUpdate(GameState& state, float deltaTime, BattleData& bd);
 
@@ -467,6 +512,34 @@ struct ClientData {
 	BattleData* bd = nullptr;
 	int ParticipateID; // player's id in Match. 0, 1, 2
 };
+
+ThrowCard ThrowCard::CreateMonsterToPlayer_ThrowCard(PlayerData& p, float maxTime) {
+	Pos pos;
+	pos.x = floor(p.pos.x);
+	pos.y = floor(p.pos.y);
+	return ThrowCard(Pos(monsterPos, monsterPos), pos, maxTime, ((ClientData*)p.clientData)->ParticipateID);
+}
+
+ThrowCard ThrowCard::CreatePlayerToMonster_ThrowCard(PlayerData& p, float maxTime) {
+	Pos pos;
+	pos.x = floor(p.pos.x);
+	pos.y = floor(p.pos.y);
+	return ThrowCard(pos, Pos(monsterPos, monsterPos), maxTime, ((ClientData*)p.clientData)->ParticipateID);
+}
+
+ThrowCard ThrowCard::CreatePlayerToPlayer_ThrowCard(PlayerData& p1, PlayerData& p2, float maxTime) {
+	Pos pos1;
+	pos1.x = floor(p1.pos.x);
+	pos1.y = floor(p1.pos.y);
+	Pos pos2;
+	pos2.x = floor(p2.pos.x);
+	pos2.y = floor(p2.pos.y);
+	return ThrowCard(pos1, pos2, maxTime, ((ClientData*)p1.clientData)->ParticipateID);
+}
+
+ThrowCard ThrowCard::CreateFollowCard(Pos startp, int fpos, float maxTime) {
+	return ThrowCard(startp, Pos(fpos, fpos), maxTime, 0);
+}
 
 ClientData clients[128] = {};
 int thread_id_up = 0;
@@ -622,12 +695,37 @@ void ExecuteOP(BattleData& bd) {
 				bd.gameState.players[partID].Dpress = isdown;
 				//bd.gameState.players[partID].Move(speed, 0);
 			}
+			else if (key == VK_SPACE) {
+				bd.gameState.players[partID].ParingMoment = true;
+			}
 			break;
 		}
 		case CTS_PT_PlayCard:
 		{
-			printf("player %d Use Card index : %d, Target : %d \n", op.op_playcard.playerID, op.op_playcard.cardindex, op.op_playcard.enemyID);
-			bd.gameLogic.PlayCard(bd.gameState, op.op_playcard.cardindex, bd, op.op_playcard.playerID, op.op_playcard.enemyID);
+////<<<<<<< Updated upstream
+//			printf("player %d Use Card index : %d, Target : %d \n", op.op_playcard.playerID, op.op_playcard.cardindex, op.op_playcard.enemyID);
+//			bd.gameLogic.PlayCard(bd.gameState, op.op_playcard.cardindex, bd, op.op_playcard.playerID, op.op_playcard.enemyID);
+////=======
+			printf("player %d Use Card index : %d \n", op.op_playcard.playerID, op.op_playcard.cardindex);
+			if (bd.gameState.PvEMode) {
+				bd.gameLogic.PlayCard(bd.gameState, op.op_playcard.cardindex, bd, op.op_playcard.playerID, op.op_playcard.enemyID);
+			}
+			else {
+				PlayerData& pd = bd.gameState.players[op.op_playcard.playerID];
+				constexpr float ThrowMaxTime = 1.0f;
+				if (op.op_playcard.enemyID != -1) {
+					PlayerData& target_pd = bd.gameState.players[op.op_playcard.enemyID];
+					ThrowCard tc = ThrowCard(Pos(floor(pd.pos.x), floor(pd.pos.y)), Pos(floor(target_pd.pos.x), floor( target_pd.pos.y)), ThrowMaxTime, op.op_playcard.playerID);
+					tc.cardID = bd.gameState.players[op.op_playcard.playerID].hand[op.op_playcard.cardindex].id;
+					//bd.gameLogic.CardThrow(bd, tc);
+					bd.gameLogic.PlayCard(bd.gameState, op.op_playcard.cardindex, bd, tc.ownerID, op.op_playcard.enemyID, &tc);
+				}/*
+				else {
+					int usePos = ThrowCard::playerPos[op.op_playcard.playerID];
+					bd.gameLogic.CardThrow(bd, ThrowCard(Pos(usePos, usePos), Pos(op.op_playcard.pos_x, op.op_playcard.pos_y), ThrowMaxTime, op.op_playcard.playerID));
+				}*/
+			}
+//>>>>>>> Stashed changes
 			break;
 		}
 		}
@@ -639,6 +737,10 @@ void ExecuteOP(BattleData& bd) {
 
 void TimeBasedUpdate(BattleData& bd, float deltaTime) {
 	bd.gameLogic.Update(bd.gameState, bd);
+
+	for (int i = 0; i < bd.gameState.playerCount; ++i) {
+		bd.gameState.players[i].ParingMoment = false;
+	}
 }
 
 DWORD WINAPI ProcessBattle(LPVOID arg) {
@@ -1314,6 +1416,11 @@ void GameLogic::ExecuteEnemyAI(GameState& state, float deltaTime, BattleData& bd
 
 void GameLogic::UpdateBattle_RealTime(GameState& state, float deltaTime, BattleData& bd)
 {
+	//card throwing update
+	if (state.PvEMode == false) {
+		CardUpdate(bd, deltaTime);
+	}
+
 	//player movement
 	constexpr float speed = 2.0f;
 	for (int i = 0; i < state.playerCount; ++i) {
@@ -1503,7 +1610,7 @@ void GameLogic::UpdateBuffsAndTimers(GameState& state, float deltaTime)
 
 }
 
-void GameLogic::PlayCard(GameState& state, int cardIndex, BattleData& bd, int playerIndex, int targetIndex) {
+void GameLogic::PlayCard(GameState& state, int cardIndex, BattleData& bd, int playerIndex, int targetIndex, ThrowCard* Throw_Card) {
 	PlayerData& player = state.players[playerIndex];
 	CardData& card = player.hand[cardIndex];
 
@@ -1515,6 +1622,7 @@ void GameLogic::PlayCard(GameState& state, int cardIndex, BattleData& bd, int pl
 	}
 
 	bool isused = false;
+	bool forOther = true;
 	int manaCost = 0;
 	// Card ID 0: 심장 뽑기 (Cost 2, Attack 70, Heal 10, Attack resets)
 	if (card.id == 0 && player.mana >= 2) {
@@ -1534,6 +1642,7 @@ void GameLogic::PlayCard(GameState& state, int cardIndex, BattleData& bd, int pl
 	// Card ID 3: 자세잡기 (Cost 1, Defense +3, Mana +1)
 	else if (card.id == 3 && player.mana >= 1) {
 		manaCost = 1;
+		forOther = false;
 		isused = true;
 	}
 	// Card ID 4: 돌진 (Cost 2, Attack 40, Defense +10, Attack resets)
@@ -1549,6 +1658,7 @@ void GameLogic::PlayCard(GameState& state, int cardIndex, BattleData& bd, int pl
 	// Card ID 6: 바리게이트 (Cost 2, Defense x2)
 	else if (card.id == 6 && player.mana >= 2) {
 		manaCost = 2;
+		forOther = false;
 		isused = true;
 	}
 	// Card ID 7: 방패 밀쳐내기 (Cost 1, Attack = Defense, Attack resets)
@@ -1559,11 +1669,13 @@ void GameLogic::PlayCard(GameState& state, int cardIndex, BattleData& bd, int pl
 	// Card ID 8: 굳건한 태세 (Cost 2, Block next attack)
 	else if (card.id == 8 && player.mana >= 2) {
 		manaCost = 2;
+		forOther = false;
 		isused = true;
 	}
 	// Card ID 9: 방패 세우기 (Cost 1, Defense +5)
 	else if (card.id == 9 && player.mana >= 1) {
 		manaCost = 1;
+		forOther = false;
 		isused = true;
 	}
 	// Card ID 10: 절단 (Cost 2, Attack 40 (ignores defense), Attack resets)
@@ -1579,6 +1691,7 @@ void GameLogic::PlayCard(GameState& state, int cardIndex, BattleData& bd, int pl
 	// Card ID 12: 고속 이동 (Cost 2, Defense +5, Mana +1)
 	else if (card.id == 12 && player.mana >= 2) {
 		manaCost = 2;
+		forOther = false;
 		isused = true;
 	}
 	// Card ID 13: 혈류 (Cost 1, HP -10, Attack 60, Attack resets)
@@ -1593,23 +1706,38 @@ void GameLogic::PlayCard(GameState& state, int cardIndex, BattleData& bd, int pl
 	}
 
 	if (isused) {
-		player.mana -= manaCost;
-		float newMana = player.mana;
-		char ptypeMana = (playerIndex * PLAYER_SYNC_STRIDE) + SYNC_MANA;
-		RecordSTCPacket(bd, ptypeMana, &newMana, sizeof(float));
-
 		if (state.PvEMode && !state.players[playerIndex].playerdeath) {
+			player.mana -= manaCost;
+			float newMana = player.mana;
+			char ptypeMana = (playerIndex * PLAYER_SYNC_STRIDE) + SYNC_MANA;
+			RecordSTCPacket(bd, ptypeMana, &newMana, sizeof(float));
+
 			PlayCardLogic(state, card.id, bd, playerIndex, false);
+
+			card.id = rand() % 15;
+			CardData newCard = card;
+			char ptypeCard = (playerIndex * PLAYER_SYNC_STRIDE) + (SYNC_HAND_SLOT_0 + cardIndex);
+			RecordSTCPacket(bd, ptypeCard, &newCard, sizeof(CardData));
 		}
 		else if(!state.PvEMode && !state.players[playerIndex].playerdeath){
-			PlayCardLogicPvP(state, card.id, bd, playerIndex, targetIndex);
+			player.mana -= manaCost;
+			float newMana = player.mana;
+			char ptypeMana = (playerIndex * PLAYER_SYNC_STRIDE) + SYNC_MANA;
+			RecordSTCPacket(bd, ptypeMana, &newMana, sizeof(float));
+
+			if (forOther == false || Throw_Card == nullptr) {
+				PlayCardLogicPvP(state, card.id, bd, playerIndex, targetIndex);
+			}
+			else {
+				//ThrowCard
+				bd.gameLogic.CardThrow(bd, *Throw_Card);
+			}
+
+			card.id = rand() % 15;
+			CardData newCard = card;
+			char ptypeCard = (playerIndex * PLAYER_SYNC_STRIDE) + (SYNC_HAND_SLOT_0 + cardIndex);
+			RecordSTCPacket(bd, ptypeCard, &newCard, sizeof(CardData));
 		}
-
-
-		card.id = rand() % 15;
-		CardData newCard = card;
-		char ptypeCard = (playerIndex * PLAYER_SYNC_STRIDE) + (SYNC_HAND_SLOT_0 + cardIndex);
-		RecordSTCPacket(bd, ptypeCard, &newCard, sizeof(CardData));
 
 		// 마나 다운 애니메이션 이벤트
 		
@@ -1907,6 +2035,7 @@ void GameLogic::PlayCardLogic(GameState& state, int cardID, BattleData& bd, int 
 	}
 }
 
+//<<<<<<< Updated upstream
 void GameLogic::PlayCardLogicPvP(GameState& state, int cardID, BattleData& bd, int attackerIndex, int targetIndex)
 {
 	PlayerData& attacker = state.players[attackerIndex];
@@ -2134,9 +2263,112 @@ void GameLogic::PlayCardLogicPvP(GameState& state, int cardID, BattleData& bd, i
 	}
 }
 
-void GameLogic::CardUpdate(GameState& state, float deltaTime, BattleData& bd)
+void GameLogic::CardUpdate(BattleData& bd, float deltaTime)
 {
+	GameState& state = bd.gameState;
+	constexpr float ParingEpsilon = 0.1f;
+	constexpr float CardThrowingTimeDecreaseRate = 0.95f;
 
+	list<ThrowCard>::iterator EraseArr[128] = {};
+	int up = 0;
+	ThrowCard AddArr[128] = {};
+	int addup = 0;
+
+	for (list<ThrowCard>::iterator iter = state.throwCardList.begin(); iter != state.throwCardList.end(); ++iter) {
+		ThrowCard& tc = *iter;
+		tc.Update(deltaTime);
+		if (fabsf(tc.flowTime - tc.maxTime) <= ParingEpsilon) {
+			if (tc.end_p.x != ThrowCard::monsterPos) {
+				for (int i = 0; i < state.playerCount; ++i) {
+					//state.players[i].ParingMoment = true;
+					//만약 던지는 카드의 목적지가 플레이어를 향해 있다면.
+					if ((tc.end_p.x == (int)floor(state.players[i].pos.x) && tc.end_p.y == state.players[i].pos.y) || tc.end_p.x == ThrowCard::playerPos[i]) {
+
+						// 플레이어가 패링 모먼트일때
+						if (state.players[i].ParingMoment) {
+							//튕겨낸다? -> 그럴려면 카드의 주인이 있어야 함.
+							//일단 카드를 지우고..
+							EraseArr[up] = iter;
+							up += 1;
+
+							// 다시만든다.
+							Pos p1 = Pos(bd.gameState.players[i].pos.x, bd.gameState.players[i].pos.y);
+							PlayerData& target_pd = bd.gameState.players[tc.ownerID];
+							AddArr[addup] = ThrowCard(p1, Pos(floor(target_pd.pos.x), floor(target_pd.pos.y)), tc.maxTime * CardThrowingTimeDecreaseRate, i);
+							AddArr[addup].ownerID = i;
+							AddArr[addup].cardID = tc.cardID;
+								//ThrowCard::CreateFollowCard(p1, ThrowCard::monsterPos, tc.maxTime * CardThrowingTimeDecreaseRate);
+							addup += 1;
+
+							break;
+						}
+						else {
+							// 카드 효과를 발동한다.
+							//PlayCard(bd.gameState, tc.cardID, bd, tc.ownerID, i, nullptr);
+							PlayCardLogicPvP(state, tc.cardID, bd, tc.ownerID, i);
+							EraseArr[up] = iter;
+							up += 1;
+						}
+					}
+				}
+			}
+			/*else if (tc.end_p.x == ThrowCard::monsterPos) {
+				int r = rand() % 2;
+				if (r == 0) {
+					tc = ThrowCard::CreateFollowCard(Pos(ThrowCard::monsterPos, ThrowCard::monsterPos), ThrowCard::playerPos[0], tc.maxTime * CardThrowingTimeDecreaseRate);
+				}
+				else {
+					PlayCardLogic(state, tc.cardID, bd, 0, true);
+					EraseArr[up] = iter;
+					up += 1;
+				}
+			}*/
+		}
+		else if (tc.flowTime - tc.maxTime > ParingEpsilon) {
+			for (int i = 0; i < state.playerCount; ++i) {
+				if (tc.end_p.x == (int)state.players[i].pos.x && tc.end_p.y == (int)state.players[i].pos.y) {
+					//PlayCard(bd.gameState, tc.cardID, bd, tc.ownerID, i, nullptr);
+					PlayCardLogicPvP(state, tc.cardID, bd, tc.ownerID, i);
+					//ApplyDamageToPlayer(state, 10, i, bd);
+				}
+
+				if (tc.end_p.x == ThrowCard::playerPos[i]) {
+					//PlayCard(bd.gameState, tc.cardID, bd, tc.ownerID, i, nullptr);
+					PlayCardLogicPvP(state, tc.cardID, bd, tc.ownerID, i);
+					//PlayCardLogic(state, tc.cardID, bd, i, true);
+				}
+			}
+
+			/*if (tc.end_p.x == ThrowCard::monsterPos) {
+				PlayCardLogic(state, tc.cardID, bd, 0, true);
+			}*/
+
+			//push
+			EraseArr[up] = iter;
+			up += 1;
+		}
+	}
+
+	for (int i = 0; i < up; ++i) {
+		state.throwCardList.erase(EraseArr[i]);
+	}
+	up = 0;
+
+	for (int i = 0; i < addup; ++i) {
+		CardThrow(bd, AddArr[i]);
+	}
+	addup = 0;
+
+	for (int i = 0; i < 3; ++i) {
+		state.players[i].ParingMoment = false;
+	}
+}
+
+void GameLogic::CardThrow(BattleData& bd, ThrowCard tc)
+{
+	bd.gameState.throwCardList.push_back(tc);
+	char ptypeInv = STC_PT_ThrowCard;
+	RecordSTCPacket(bd, ptypeInv, &tc, sizeof(ThrowCard));
 }
 
 void GameLogic::ApplyDamageToPlayer(GameState& state, int damage, int playerindex, BattleData& bd) {
