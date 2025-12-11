@@ -2524,36 +2524,43 @@ void GameLogic::CheckItemPickup(GameState& state, int playerindex, BattleData& b
 	if (p.playerdeath)
 		return;
 
-	int px = p.pos.x + 2;
-	int py = 2 - p.pos.y;
+	constexpr float PICKUP_RANGE = 0.5f;
 
-	if (px < 0 || px >= GameState::GRID_SIZE || py < 0 || py >= GameState::GRID_SIZE)
-		return;
+	for (int r = 0; r < GameState::GRID_SIZE; ++r) {
+		for (int c = 0; c < GameState::GRID_SIZE; ++c) {
 
-	int currentItem = state.mapData[py][px].item;
+			int currentItem = state.mapData[r][c].item;
+			if (currentItem == ITEM_NONE) continue;
 
-	if (currentItem == ITEM_HP) {
-		p.hp += 15;
-		if (p.hp > 100) p.hp = 100;
+			float tileWorldX = (float)(c - 2);
+			float tileWorldY = (float)(2 - r);
 
-		char ptype = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_HP;
-		RecordSTCPacket(bd, ptype, &p.hp, sizeof(int));
+			float diffX = abs(p.pos.x - tileWorldX);
+			float diffY = abs(p.pos.y - tileWorldY);
 
-		state.mapData[py][px].item = ITEM_NONE;
+			if (diffX < PICKUP_RANGE && diffY < PICKUP_RANGE) {
 
-		RecordSTCPacket(bd, STC_Sync_MapData, state.mapData, sizeof(state.mapData));
+				if (currentItem == ITEM_HP) {
+					p.hp += 15;
+					if (p.hp > 100) p.hp = 100;
 
-	}
-	else if (currentItem == ITEM_MANA) {
-		p.mana += 1.0f;
-		if (p.mana > p.maxMana) p.mana = p.maxMana;
+					char ptype = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_HP;
+					RecordSTCPacket(bd, ptype, &p.hp, sizeof(int));
+				}
+				else if (currentItem == ITEM_MANA) {
+					p.mana += 1.0f;
+					if (p.mana > p.maxMana) p.mana = p.maxMana;
 
-		char ptype = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_MANA;
-		RecordSTCPacket(bd, ptype, &p.mana, sizeof(float));
+					char ptype = (playerindex * PLAYER_SYNC_STRIDE) + SYNC_MANA;
+					RecordSTCPacket(bd, ptype, &p.mana, sizeof(float));
+				}
 
-		state.mapData[py][px].item = ITEM_NONE;
+				state.mapData[r][c].item = ITEM_NONE;
+				RecordSTCPacket(bd, STC_Sync_MapData, state.mapData, sizeof(state.mapData));
 
-		RecordSTCPacket(bd, STC_Sync_MapData, state.mapData, sizeof(state.mapData));
+				return;
+			}
+		}
 	}
 }
 
