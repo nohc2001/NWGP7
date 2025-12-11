@@ -2284,7 +2284,7 @@ void GameLogic::CardUpdate(BattleData& bd, float deltaTime)
 				for (int i = 0; i < state.playerCount; ++i) {
 					//state.players[i].ParingMoment = true;
 					//만약 던지는 카드의 목적지가 플레이어를 향해 있다면.
-					if ((tc.end_p.x == (int)floor(state.players[i].pos.x) && tc.end_p.y == state.players[i].pos.y) || tc.end_p.x == ThrowCard::playerPos[i]) {
+					if ((tc.end_p.x == (int)floor(state.players[i].pos.x) && tc.end_p.y == (int)floor(state.players[i].pos.y)) || tc.end_p.x == ThrowCard::playerPos[i]) {
 
 						// 플레이어가 패링 모먼트일때
 						if (state.players[i].ParingMoment) {
@@ -2328,7 +2328,7 @@ void GameLogic::CardUpdate(BattleData& bd, float deltaTime)
 		}
 		else if (tc.flowTime - tc.maxTime > ParingEpsilon) {
 			for (int i = 0; i < state.playerCount; ++i) {
-				if (tc.end_p.x == (int)state.players[i].pos.x && tc.end_p.y == (int)state.players[i].pos.y) {
+				if (tc.end_p.x == (int)floor(state.players[i].pos.x) && tc.end_p.y == (int)floor(state.players[i].pos.y)) {
 					//PlayCard(bd.gameState, tc.cardID, bd, tc.ownerID, i, nullptr);
 					PlayCardLogicPvP(state, tc.cardID, bd, tc.ownerID, i);
 					//ApplyDamageToPlayer(state, 10, i, bd);

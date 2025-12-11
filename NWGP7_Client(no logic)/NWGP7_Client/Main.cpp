@@ -1255,7 +1255,7 @@ unsigned __stdcall Recv_Thread(void* arg)
 	return 0;
 }
 
-char* SERVERIP = (char*)"127.0.0.1";
+char* SERVERIP = (char*)"183.101.112.102";
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdParam, int nCmdShow)
 {
